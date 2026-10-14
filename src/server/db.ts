@@ -35,6 +35,13 @@ export function plain<T>(data: FirebaseFirestore.DocumentData): T {
 }
 export function hashArquivo(buf: Buffer) { return createHash("sha256").update(buf).digest("hex"); }
 
+// Pseudo-integrantes do legado (ex.: "ARRECADAÇÃO EXTRA", re/posto_grad "**")
+// pertencem à Gestão de Caixa — nunca entram na visão do módulo.
+function ehPseudo(d: FirebaseFirestore.DocumentData): boolean {
+  const re = String(d.re ?? "").trim();
+  return !re || re === "**" || String(d.posto_grad ?? "").trim() === "**";
+}
+
 // Mapeamento legado → visão do módulo. Campos do legado: re, nome, posto_grad.
 // Campos inexistentes no legado (funcao, nomeGuerra, situacao, ingressoPM) moram no complemento.
 function mapearMembro(id: string, d: FirebaseFirestore.DocumentData, c?: ComplementoEfetivo | null): Integrante {
@@ -57,14 +64,14 @@ export async function listarIntegrantes(): Promise<(Integrante & { complemento: 
     adminDb.collection(COL.complementos).get(),
   ]);
   const comps = new Map(c.docs.map(d => [d.id, plain<ComplementoEfetivo>(d.data())]));
-  return m.docs.map(d => {
+  return m.docs.filter(d => !ehPseudo(d.data())).map(d => {
     const comp = comps.get(d.id) ?? null;
     return { ...mapearMembro(d.id, d.data(), comp), complemento: comp };
   });
 }
 export async function buscarIntegrante(id: string): Promise<(Integrante & { complemento: ComplementoEfetivo | null }) | null> {
   const d = await adminDb.collection(COL.membros).doc(id).get();
-  if (!d.exists) return null;
+  if (!d.exists || ehPseudo(d.data()!)) return null;
   const comp = await complementoDe(id);
   return { ...mapearMembro(d.id, d.data()!, comp), complemento: comp };
 }

@@ -3,21 +3,17 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { getClientAuth } from "@/lib/firebase/client";
 import { signOut } from "firebase/auth";
-import { useEffect, useState } from "react";
-import { obterPerfilSessao } from "@/server/actions";
+import { useState } from "react";
 import type { Perfil } from "@/lib/types";
 
 const LINKS = [
   ["/", "Início"], ["/efetivo", "Efetivo"], ["/elogios", "Elogios"], ["/laureas", "Láureas"], ["/relatorios", "Relatórios"], ["/admin", "Administração"],
 ] as const;
 
-export function Nav() {
+export function Nav({ perfil }: { perfil: Perfil | null }) {
   const path = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [perfil, setPerfil] = useState<Perfil | null>(null);
-  useEffect(() => { obterPerfilSessao().then(s => setPerfil(s?.perfil ?? null)).catch(() => {}); }, []);
-  useEffect(() => { setOpen(false); }, [path]);
   if (path === "/login") return null;
 
   const links = LINKS.filter(([h]) => h !== "/admin" || perfil === "admin");
@@ -34,7 +30,7 @@ export function Nav() {
         <Link href="/" className="font-semibold tracking-wide">
           Controle de Láureas <span className="text-[#c9a227]">— Equipe B</span>
         </Link>
-        <button aria-label="Abrir menu" className="min-h-11 min-w-11 rounded border border-white/30 px-3 py-2 md:hidden" onClick={() => setOpen(!open)}>☰</button>
+        <button aria-label="Abrir menu" className="md:hidden rounded px-3 py-1 border border-white/30" onClick={() => setOpen(!open)}>☰</button>
         <nav className="hidden gap-4 md:flex items-center">
           {links.map(([h, l]) => (
             <Link key={h} href={h} className={`text-sm hover:text-[#c9a227] ${path === h ? "text-[#c9a227]" : ""}`}>{l}</Link>

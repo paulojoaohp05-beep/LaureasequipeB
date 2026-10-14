@@ -6,15 +6,16 @@ import { adminAuth } from "@/lib/firebase/admin";
 export async function POST(req: NextRequest) {
   const { idToken } = await req.json().catch(() => ({}));
   if (!idToken || typeof idToken !== "string") return NextResponse.json({ erro: "Token ausente" }, { status: 400 });
+  let sessionCookie: string;
   try {
-    await adminAuth.verifyIdToken(idToken);
+    sessionCookie = await adminAuth.createSessionCookie(idToken, { expiresIn: 14 * 24 * 60 * 60 * 1000 });
   } catch {
     return NextResponse.json({ erro: "Token inválido" }, { status: 401 });
   }
   const res = NextResponse.json({ ok: true });
-  res.cookies.set("session", idToken, {
+  res.cookies.set("session", sessionCookie, {
     httpOnly: true, secure: process.env.NODE_ENV === "production",
-    sameSite: "lax", path: "/", maxAge: 60 * 55, // ~55 min (tokens valem 1h)
+    sameSite: "lax", path: "/", maxAge: 14 * 24 * 60 * 60, // 14 dias (session cookie do Firebase)
   });
   return res;
 }

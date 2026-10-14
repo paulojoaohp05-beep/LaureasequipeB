@@ -36,7 +36,7 @@ export default async function FichaPage({ params }: { params: Promise<{ id: stri
         <h2 className="mb-3 font-semibold text-[#1f3a5f]">Láureas</h2>
         {laureas.length === 0 ? <p className="text-sm text-slate-500">Nenhuma concessão registrada.</p> : (
           <table className="mobile-cards w-full text-sm">
-            <thead><tr className="text-left text-slate-600"><th className="pb-2">Grau</th><th className="pb-2">Concessão</th><th className="pb-2">Publicação</th><th className="pb-2">Referência</th><th className="pb-2">Observação</th></tr></thead>
+            <thead><tr className="text-left text-slate-600"><th className="pb-2">Grau</th><th className="pb-2">Concessão</th><th className="pb-2">Publicação</th><th className="pb-2">Boletim Interno Nº</th><th className="pb-2">Observação</th></tr></thead>
             <tbody>{laureas.map(l => (
               <tr key={l.id} className="border-t border-slate-100"><td className="py-1.5">{l.grau}</td><td>{formatBR(l.dataConcessao)}</td><td>{formatBR(l.dataPublicacao)}</td><td>{l.referencia || "—"}</td><td>{l.observacao || "—"}</td></tr>
             ))}</tbody>
@@ -48,7 +48,7 @@ export default async function FichaPage({ params }: { params: Promise<{ id: stri
         <h2 className="mb-3 font-semibold text-[#1f3a5f]">Elogios</h2>
         {elogios.length === 0 ? <p className="text-sm text-slate-500">Nenhum elogio registrado.</p> : (
           <table className="mobile-cards w-full text-sm">
-            <thead><tr className="text-left text-slate-600"><th className="pb-2">Título</th><th className="pb-2">Solicitação</th><th className="pb-2">Situação</th><th className="pb-2">Publicação</th><th className="pb-2">Referência</th></tr></thead>
+            <thead><tr className="text-left text-slate-600"><th className="pb-2">Título</th><th className="pb-2">Solicitação</th><th className="pb-2">Situação</th><th className="pb-2">Publicação</th><th className="pb-2">Boletim Interno Nº</th></tr></thead>
             <tbody>{elogios.map(e => (
               <tr key={e.id} className="border-t border-slate-100"><td className="py-1.5">{e.titulo}</td><td>{formatBR(e.dataSolicitacao)}</td><td>{e.situacao}</td><td>{formatBR(e.dataPublicacao)}</td><td>{e.referencia || "—"}</td></tr>
             ))}</tbody>

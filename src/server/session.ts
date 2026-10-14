@@ -17,7 +17,10 @@ export async function sessaoAtual(): Promise<Sessao | null> {
   const token = store.get("session")?.value;
   if (!token) return null;
   try {
-    const dec = await adminAuth.verifyIdToken(token);
+    // Session cookie (14 dias); fallback para ID token legado (~1h) ainda em cookies antigos.
+    let dec;
+    try { dec = await adminAuth.verifySessionCookie(token, false); }
+    catch { dec = await adminAuth.verifyIdToken(token); }
     const doc = await adminDb.collection("moduloUsuarios").doc(dec.uid).get();
     if (!doc.exists) return { uid: dec.uid, email: dec.email ?? "", usuario: { uid: dec.uid, email: dec.email ?? "", equipeId: "", perfil: "visualizador", ativo: false } };
     const usuario = { uid: dec.uid, ...(doc.data() as Omit<UsuarioModulo, "uid">) };

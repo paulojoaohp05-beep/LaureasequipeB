@@ -5,12 +5,12 @@
 import { useMemo, useRef, useState } from "react";
 import type { Integrante } from "@/lib/types";
 
-export function IntegrantePicker({ name, integrantes, multi = false, required = false, placeholder = "Digite nome ou RE…" }: {
-  name: string; integrantes: Integrante[]; multi?: boolean; required?: boolean; placeholder?: string;
+export function IntegrantePicker({ name, integrantes, multi = false, required = false, placeholder = "Digite nome ou RE…", inicial }: {
+  name: string; integrantes: Integrante[]; multi?: boolean; required?: boolean; placeholder?: string; inicial?: string[];
 }) {
   const [q, setQ] = useState("");
   const [aberto, setAberto] = useState(false);
-  const [sel, setSel] = useState<Integrante[]>([]);
+  const [sel, setSel] = useState<Integrante[]>(() => (inicial ?? []).map(id => integrantes.find(i => i.id === id)).filter((i): i is Integrante => !!i));
   const ref = useRef<HTMLDivElement>(null);
 
   const filtrados = useMemo(() => {

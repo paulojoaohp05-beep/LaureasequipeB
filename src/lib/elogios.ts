@@ -36,7 +36,12 @@ export function assertPodePublicarOuCancelar(perfil: Perfil) {
 
 export function assertPublicacaoCompleta(campos: { dataPublicacao?: string; referencia?: string }) {
   if (!campos.dataPublicacao) throw new ErroValidacao("Data de publicação é obrigatória para publicar");
-  if (!campos.referencia?.trim()) throw new ErroValidacao("Referência do boletim/documento é obrigatória para publicar");
+  if (!campos.referencia?.trim()) throw new ErroValidacao("Boletim Interno Nº é obrigatório para publicar");
+}
+
+/** Correção de registros publicados/negados (sem mudar situação): só admin/gestor. */
+export function assertPodeCorrigir(perfil: Perfil) {
+  if (perfil !== "admin" && perfil !== "gestor") throw new ErroPermissao("Somente administrador ou gestor corrige registros");
 }
 
 /** Solicitante pode ser o próprio usuário vinculado (editor) ou escolhido por admin/gestor. */

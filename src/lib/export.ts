@@ -33,7 +33,7 @@ export async function xlsxEfetivo(items: (Integrante & { ingressoEquipe?: string
 export async function xlsxElogios(items: Elogio[], nomes: Map<string, string>, filtros: string): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet("Elogios");
-  cabecalho(ws, ["Título", "Destinatário(s)", "Solicitante", "Data da solicitação", "Situação", "Data de publicação", "Referência", "Justificativa (negado/cancelado)"]);
+  cabecalho(ws, ["Título", "Destinatário(s)", "Solicitante", "Data da solicitação", "Situação", "Data de publicação", "Boletim Interno Nº", "Justificativa (negado/cancelado)"]);
   for (const e of items) ws.addRow([
     seguro(e.titulo), seguro(e.destinatarioIds.map(id => nomes.get(id) ?? id).join(", ")), seguro(nomes.get(e.solicitanteId) ?? e.solicitanteId),
     formatBR(e.dataSolicitacao), seguro(e.situacao), formatBR(e.dataPublicacao), seguro(e.referencia), seguro(e.justificativaNegativa ?? e.justificativaCancelamento),
@@ -45,7 +45,7 @@ export async function xlsxElogios(items: Elogio[], nomes: Map<string, string>, f
 export async function xlsxLaureas(items: Laurea[], nomes: Map<string, string>, filtros: string): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet("Laureas");
-  cabecalho(ws, ["Integrante", "Grau", "Data da concessão", "Data de publicação", "Referência", "Observação"]);
+  cabecalho(ws, ["Integrante", "Grau", "Data da concessão", "Data de publicação", "Boletim Interno Nº", "Observação"]);
   for (const l of items) ws.addRow([seguro(nomes.get(l.integranteId) ?? l.integranteId), seguro(l.grau), formatBR(l.dataConcessao), formatBR(l.dataPublicacao), seguro(l.referencia), seguro(l.observacao)]);
   meta(ws, filtros, new Date());
   return Buffer.from(await wb.xlsx.writeBuffer());
@@ -54,7 +54,7 @@ export async function xlsxLaureas(items: Laurea[], nomes: Map<string, string>, f
 export async function xlsxParticipacao(linhas: { sargento: string; solicitacoes: number; publicacoes: number; pendencias: number | string; negados: number }[], filtros: string): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet("Participacao por sargento");
-  cabecalho(ws, ["Sargento solicitante", "Solicitações", "Publicações", "Pendências", "Negados"]);
+  cabecalho(ws, ["Solicitante", "Solicitações", "Publicações", "Pendências", "Negados"]);
   for (const l of linhas) ws.addRow([seguro(l.sargento), l.solicitacoes, l.publicacoes, l.pendencias, l.negados]);
   meta(ws, filtros, new Date());
   return Buffer.from(await wb.xlsx.writeBuffer());

@@ -2,10 +2,10 @@
 // Todas as operações verificam sessão, autorização do módulo, equipe e perfil no servidor.
 import { adminDb } from "@/lib/firebase/admin";
 import { FieldValue } from "firebase-admin/firestore";
-import { exigirSessao, exigirPerfil, sessaoAtual } from "./session";
+import { exigirSessao, exigirPerfil } from "./session";
 import * as db from "./db";
 import { COL } from "./db";
-import { assertPodeEditar, assertPodePublicarOuCancelar, assertPublicacaoCompleta, assertSolicitante, assertTransicao, ErroValidacao } from "@/lib/elogios";
+import { assertPodeEditar, assertPodeCorrigir, assertPodePublicarOuCancelar, assertPublicacaoCompleta, assertSolicitante, assertTransicao, ErroValidacao } from "@/lib/elogios";
 import { isDataCivil, periodoBounds, dentroPeriodo, hojeSP } from "@/lib/dates";
 import { lerPlanilha, reconciliar, hashPlanilhaRe } from "@/lib/planilha";
 import type { Elogio, Laurea, Perfil, FiltroPeriodo } from "@/lib/types";
@@ -108,11 +108,6 @@ export async function obterFicha(integranteId: string) {
   return { integrante: i, complemento, laureas, elogios };
 }
 
-export async function obterPerfilSessao() {
-  const s = await sessaoAtual();
-  return s ? { perfil: s.usuario.perfil, email: s.email } : null;
-}
-
 export async function obterElogios() { const s = await exigirSessao(); assertEquipe(s); return db.listarElogios(EQUIPE); }
 export async function obterLaureas() { const s = await exigirSessao(); assertEquipe(s); return db.listarLaureas(EQUIPE); }
 
@@ -129,7 +124,7 @@ export async function criarElogio(input: { titulo: string; descricao?: string; d
   const base = {
     equipeId: EQUIPE, destinatarioIds: input.destinatarioIds, solicitanteId: input.solicitanteId,
     lancadoPorUid: s.uid, titulo: input.titulo.trim(), descricao: input.descricao?.trim() ?? "",
-    dataSolicitacao,
+    dataSolicitacao, referencia: input.referencia?.trim() ?? "",
     criadoEm: FieldValue.serverTimestamp(), atualizadoEm: FieldValue.serverTimestamp(),
   };
   if (input.jaPublicado) {
@@ -198,16 +193,58 @@ export async function cancelarElogio(id: string, justificativa: string) {
   });
 }
 
-export async function editarElogio(id: string, campos: { titulo?: string; descricao?: string }) {
+export async function editarElogio(id: string, campos: { titulo?: string; descricao?: string; destinatarioIds?: string[]; solicitanteId?: string; dataSolicitacao?: string; referencia?: string }) {
   const s = await exigirSessao(); assertEquipe(s);
+  if (campos.dataSolicitacao !== undefined && !isDataCivil(campos.dataSolicitacao)) throw new ErroValidacao("Data da solicitação inválida");
+  if (campos.destinatarioIds !== undefined && !campos.destinatarioIds.length) throw new ErroValidacao("Selecione ao menos um destinatário");
   const ref = adminDb.collection(COL.elogios).doc(id);
   await adminDb.runTransaction(async t => {
     const d = await t.get(ref);
     if (!d.exists) throw new ErroValidacao("Registro não encontrado");
     const e = { id: d.id, ...d.data() } as Elogio;
+    if (e.situacao !== "rascunho" && e.situacao !== "solicitado") throw new ErroValidacao("Use corrigir para registros publicados/negados");
     assertPodeEditar(e, s.usuario.perfil, s.uid);
-    t.update(ref, { ...(campos.titulo !== undefined && { titulo: campos.titulo.trim() }), ...(campos.descricao !== undefined && { descricao: campos.descricao.trim() }), atualizadoEm: FieldValue.serverTimestamp() });
-    t.create(adminDb.collection(COL.auditoria).doc(), { acao: "elogio.editar", entidade: "elogio", entidadeId: id, autorUid: s.uid, autorEmail: s.email, em: FieldValue.serverTimestamp(), campos });
+    const antes: Record<string, { antes?: unknown; depois?: unknown }> = {};
+    const upd: Record<string, unknown> = { atualizadoEm: FieldValue.serverTimestamp() };
+    if (campos.titulo !== undefined) { upd.titulo = campos.titulo.trim(); antes.titulo = { antes: e.titulo, depois: upd.titulo }; }
+    if (campos.descricao !== undefined) { upd.descricao = campos.descricao.trim(); antes.descricao = { antes: e.descricao, depois: upd.descricao }; }
+    if (campos.destinatarioIds !== undefined) { upd.destinatarioIds = campos.destinatarioIds; antes.destinatarioIds = { antes: e.destinatarioIds, depois: upd.destinatarioIds }; }
+    if (campos.solicitanteId !== undefined) { upd.solicitanteId = campos.solicitanteId; antes.solicitanteId = { antes: e.solicitanteId, depois: upd.solicitanteId }; }
+    if (campos.dataSolicitacao !== undefined) { upd.dataSolicitacao = campos.dataSolicitacao; antes.dataSolicitacao = { antes: e.dataSolicitacao, depois: upd.dataSolicitacao }; }
+    if (campos.referencia !== undefined) { upd.referencia = campos.referencia.trim(); antes.referencia = { antes: e.referencia, depois: upd.referencia }; }
+    t.update(ref, upd);
+    t.create(adminDb.collection(COL.auditoria).doc(), { acao: "elogio.editar", entidade: "elogio", entidadeId: id, autorUid: s.uid, autorEmail: s.email, em: FieldValue.serverTimestamp(), campos: antes });
+  });
+}
+
+/** Correção de publicado/negado sem mudar a situação — só admin/gestor. */
+export async function corrigirElogio(id: string, campos: { titulo?: string; descricao?: string; dataSolicitacao?: string; dataPublicacao?: string; referencia?: string; justificativaNegativa?: string }) {
+  const s = await exigirSessao(); assertEquipe(s);
+  assertPodeCorrigir(s.usuario.perfil);
+  if (campos.dataSolicitacao !== undefined && !isDataCivil(campos.dataSolicitacao)) throw new ErroValidacao("Data da solicitação inválida");
+  if (campos.dataPublicacao !== undefined && !isDataCivil(campos.dataPublicacao)) throw new ErroValidacao("Data de publicação inválida");
+  const ref = adminDb.collection(COL.elogios).doc(id);
+  await adminDb.runTransaction(async t => {
+    const d = await t.get(ref);
+    if (!d.exists) throw new ErroValidacao("Registro não encontrado");
+    const e = { id: d.id, ...d.data() } as Elogio;
+    if (e.situacao !== "publicado" && e.situacao !== "negado") throw new ErroValidacao("Correção vale apenas para publicados/negados");
+    const camposAud: Record<string, { antes?: unknown; depois?: unknown }> = {};
+    const upd: Record<string, unknown> = { atualizadoEm: FieldValue.serverTimestamp() };
+    for (const k of ["titulo", "descricao", "dataSolicitacao", "dataPublicacao", "referencia", "justificativaNegativa"] as const) {
+      const v = campos[k];
+      if (v !== undefined) { upd[k] = typeof v === "string" ? v.trim() : v; camposAud[k] = { antes: e[k], depois: upd[k] }; }
+    }
+    // Publicado não pode ficar sem data de publicação nem Boletim Interno Nº.
+    if (e.situacao === "publicado") {
+      const dp = (upd.dataPublicacao as string | undefined) ?? e.dataPublicacao;
+      const rf = (upd.referencia as string | undefined) ?? e.referencia;
+      if (!dp || !rf?.trim()) throw new ErroValidacao("Publicado exige data de publicação e Boletim Interno Nº");
+    }
+    t.update(ref, upd);
+    if (Object.keys(camposAud).length) {
+      t.create(adminDb.collection(COL.auditoria).doc(), { acao: "elogio.corrigir", entidade: "elogio", entidadeId: id, autorUid: s.uid, autorEmail: s.email, em: FieldValue.serverTimestamp(), campos: camposAud });
+    }
   });
 }
 
@@ -227,6 +264,28 @@ export async function registrarLaurea(input: { integranteId: string; grau: strin
     t.create(adminDb.collection(COL.auditoria).doc(), { acao: "laurea.registrar", entidade: "laurea", entidadeId: ref.id, autorUid: s.uid, autorEmail: s.email, em: FieldValue.serverTimestamp() });
   });
   return { id: ref.id };
+}
+
+export async function editarLaurea(id: string, campos: { integranteId?: string; grau?: string; dataConcessao?: string; dataPublicacao?: string; referencia?: string; solicitanteId?: string; observacao?: string }) {
+  const s = await exigirPerfil("admin", "gestor"); assertEquipe(s);
+  if (campos.dataConcessao !== undefined && !isDataCivil(campos.dataConcessao)) throw new ErroValidacao("Data da concessão inválida ou ausente");
+  if (campos.dataPublicacao !== undefined && campos.dataPublicacao !== "" && !isDataCivil(campos.dataPublicacao)) throw new ErroValidacao("Data de publicação inválida");
+  if (campos.grau !== undefined && !["1º", "2º", "3º", "4º", "5º"].includes(campos.grau)) throw new ErroValidacao("Grau inválido");
+  const ref = adminDb.collection(COL.laureas).doc(id);
+  await adminDb.runTransaction(async t => {
+    const d = await t.get(ref);
+    if (!d.exists) throw new ErroValidacao("Registro não encontrado");
+    const l = { id: d.id, ...d.data() } as Laurea;
+    const camposAud: Record<string, { antes?: unknown; depois?: unknown }> = {};
+    const upd: Record<string, unknown> = {};
+    for (const k of ["integranteId", "grau", "dataConcessao", "dataPublicacao", "referencia", "solicitanteId", "observacao"] as const) {
+      const v = campos[k];
+      if (v !== undefined) { upd[k] = typeof v === "string" ? v.trim() : v; camposAud[k] = { antes: l[k], depois: upd[k] }; }
+    }
+    if (!Object.keys(upd).length) return;
+    t.update(ref, upd);
+    t.create(adminDb.collection(COL.auditoria).doc(), { acao: "laurea.editar", entidade: "laurea", entidadeId: id, autorUid: s.uid, autorEmail: s.email, em: FieldValue.serverTimestamp(), campos: camposAud });
+  });
 }
 
 // ---------- Administração ----------

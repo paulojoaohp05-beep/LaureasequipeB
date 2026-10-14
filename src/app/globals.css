@@ -20,7 +20,7 @@ body {
   overflow-x: hidden;
 }
 
-@media (max-width: 767px) {
+@media screen and (max-width: 767px) {
   input:not([type="checkbox"]):not([type="radio"]),
   select,
   textarea,
@@ -96,6 +96,7 @@ body {
   }
   body {
     background: #fff;
+    font-size: 11pt;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
@@ -103,8 +104,60 @@ body {
   div {
     box-shadow: none !important;
   }
-  .md\:grid-cols-2 {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .print-only h1 {
+    font-size: 16pt;
+    font-weight: 600;
+    color: #1f3a5f;
+  }
+  .print-kpis {
+    display: grid !important;
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 6px;
+  }
+  .print-card {
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    padding: 8px;
+  }
+  .print-card p:nth-child(2) {
+    font-size: 20pt;
+    font-weight: 600;
+    color: #1f3a5f;
+  }
+  .print-grid {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8px;
+  }
+  section {
+    break-inside: avoid;
+    border: 1px solid #cbd5e1 !important;
+    padding: 8px !important;
+  }
+  h2 {
+    font-weight: 600;
+    color: #1f3a5f;
+    margin-bottom: 6px;
+  }
+  .bar-elogios {
+    background: #1f3a5f !important;
+    min-height: 2px;
+  }
+  .bar-laureas {
+    background: #c9a227 !important;
+    min-height: 2px;
+  }
+  thead {
+    display: table-header-group !important;
+  }
+  td,
+  th {
+    padding: 3px 6px !important;
+    border-bottom: 1px solid #e2e8f0;
+  }
+  a {
+    text-decoration: none;
+    color: inherit;
   }
 }
 

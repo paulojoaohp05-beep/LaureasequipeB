@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { podeTransitar, assertPodeEditar, assertPodePublicarOuCancelar, assertPublicacaoCompleta, assertSolicitante, ErroPermissao, ErroValidacao } from "./elogios";
+import { podeTransitar, assertPodeEditar, assertPodePublicarOuCancelar, assertPodeCorrigir, assertPublicacaoCompleta, assertSolicitante, ErroPermissao, ErroValidacao } from "./elogios";
 import type { Elogio } from "./types";
 
 const base: Elogio = {
@@ -36,6 +36,12 @@ describe("permissões de edição", () => {
     expect(() => assertPodePublicarOuCancelar("admin")).not.toThrow();
     expect(() => assertPodePublicarOuCancelar("editor")).toThrow(ErroPermissao);
     expect(() => assertPodePublicarOuCancelar("visualizador")).toThrow(ErroPermissao);
+  });
+  it("correção de publicado/negado: só admin e gestor", () => {
+    expect(() => assertPodeCorrigir("admin")).not.toThrow();
+    expect(() => assertPodeCorrigir("gestor")).not.toThrow();
+    expect(() => assertPodeCorrigir("editor")).toThrow(ErroPermissao);
+    expect(() => assertPodeCorrigir("visualizador")).toThrow(ErroPermissao);
   });
 });
 

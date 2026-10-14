@@ -3,6 +3,7 @@ import { useMemo, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { formatBR } from "@/lib/dates";
 import { criarMembro, editarMembro, excluirMembro } from "@/server/actions";
+import { ConfirmarExclusao } from "./ConfirmarExclusao";
 import type { Integrante, ComplementoEfetivo, Perfil } from "@/lib/types";
 
 type Item = Integrante & {
@@ -19,6 +20,7 @@ export function EfetivoClient({ itens, perfil }: { itens: Item[]; perfil: Perfil
   const [fGrad, setFGrad] = useState("");
   const [pendentes, setPendentes] = useState(false);
   const [editando, setEditando] = useState<Item | null | "novo">(null);
+  const [excluindo, setExcluindo] = useState<Item | null>(null);
   const [erro, setErro] = useState("");
   const [pending, start] = useTransition();
   const router = useRouter();
@@ -54,11 +56,10 @@ export function EfetivoClient({ itens, perfil }: { itens: Item[]; perfil: Perfil
     });
   }
 
-  function excluir(i: Item) {
-    const motivo = prompt(`Motivo da exclusão de ${i.nome}:`) ?? "";
-    if (!motivo.trim()) return;
+  function excluir(motivo: string) {
+    if (!excluindo) return;
     start(async () => {
-      try { await excluirMembro(i.id, motivo); router.refresh(); }
+      try { await excluirMembro(excluindo.id, motivo); setExcluindo(null); router.refresh(); }
       catch (e) { setErro(e instanceof Error ? e.message : "Erro"); }
     });
   }
@@ -156,7 +157,7 @@ export function EfetivoClient({ itens, perfil }: { itens: Item[]; perfil: Perfil
                   <td data-label="Ações" className="px-3 py-2 space-x-2" onClick={e => e.stopPropagation()}>
                     {i.situacao !== "excluido" && <>
                       <button onClick={() => setEditando(i)} className="text-xs text-[#1f3a5f] underline">Editar</button>
-                      <button onClick={() => excluir(i)} className="text-xs text-red-700 underline">Excluir</button>
+                      <button onClick={() => setExcluindo(i)} className="text-xs text-red-700 underline">Excluir</button>
                     </>}
                   </td>
                 )}
@@ -165,6 +166,15 @@ export function EfetivoClient({ itens, perfil }: { itens: Item[]; perfil: Perfil
           </tbody>
         </table>
       </div>
+
+      <ConfirmarExclusao
+        aberto={excluindo !== null}
+        titulo={`Excluir ${excluindo?.nome ?? ""}`}
+        descricao="O integrante sai deste módulo (exclusão lógica, com registro em auditoria). O cadastro do caixa não é alterado."
+        onConfirmar={excluir}
+        onCancelar={() => setExcluindo(null)}
+        pending={pending}
+      />
     </div>
   );
 }

@@ -48,7 +48,7 @@ export function DashboardClient({ dados, filtro }: { dados: Dados; filtro: Filtr
         <button onClick={() => window.print()} className="rounded border border-[#1f3a5f] px-4 py-1.5 text-sm text-[#1f3a5f]">Exportar PDF</button>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-6">
+      <div className="print-kpis grid grid-cols-2 gap-3 md:grid-cols-6">
         {[
           ["Efetivo ativo", dados.efetivoAtivo, "total atual"],
           ["Elogios solicitados", dados.elogiosSolicitados, "no período"],
@@ -57,7 +57,7 @@ export function DashboardClient({ dados, filtro }: { dados: Dados; filtro: Filtr
           ["Pendentes", dados.pendentes, "aguardando publicação"],
           ["Negados", dados.elogiosNegados, "no período"],
         ].map(([t, v, s]) => (
-          <div key={t as string} className="rounded-lg border border-slate-200 bg-white p-4">
+          <div key={t as string} className="print-card rounded-lg border border-slate-200 bg-white p-4">
             <p className="text-sm text-slate-600">{t}</p>
             <p className="text-3xl font-semibold text-[#1f3a5f]">{v}</p>
             <p className="text-xs text-slate-500">{s}</p>
@@ -65,12 +65,12 @@ export function DashboardClient({ dados, filtro }: { dados: Dados; filtro: Filtr
         ))}
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="print-grid grid gap-4 md:grid-cols-2">
         <section className="break-inside-avoid rounded-lg border border-slate-200 bg-white p-4">
           <h2 className="mb-3 font-semibold text-[#1f3a5f]">Elogios × Sargento</h2>
           {dados.participacao.length === 0 ? <p className="text-sm text-slate-500">Nenhum registro no período.</p> : (
             <table className="mobile-cards w-full text-sm">
-              <thead><tr className="text-left text-slate-600"><th className="pb-2">Sargento</th><th className="pb-2">Solicitações</th><th className="pb-2">Publicações</th><th className="pb-2">Pendências</th><th className="pb-2">Negados</th></tr></thead>
+              <thead><tr className="text-left text-slate-600"><th className="pb-2">Solicitante</th><th className="pb-2">Solicitações</th><th className="pb-2">Publicações</th><th className="pb-2">Pendências</th><th className="pb-2">Negados</th></tr></thead>
               <tbody>
                 {dados.participacao.map(p => (
                   <tr key={p.sargento} className="border-t border-slate-100">
@@ -88,8 +88,8 @@ export function DashboardClient({ dados, filtro }: { dados: Dados; filtro: Filtr
             <div className="flex items-end gap-2">
               {dados.evolucao.map(e => (
                 <div key={e.mes} className="flex flex-1 flex-col items-center gap-1">
-                  <div className="w-full rounded-t bg-[#1f3a5f]" style={{ height: `${(e.elogios / maxEvol) * 80}px` }} title={`Elogios: ${e.elogios}`} />
-                  <div className="w-full rounded-t bg-[#c9a227]" style={{ height: `${(e.laureas / maxEvol) * 80}px` }} title={`Láureas: ${e.laureas}`} />
+                  <div className="bar-elogios w-full rounded-t bg-[#1f3a5f]" style={{ height: `${(e.elogios / maxEvol) * 80}px` }} title={`Elogios: ${e.elogios}`} />
+                  <div className="bar-laureas w-full rounded-t bg-[#c9a227]" style={{ height: `${(e.laureas / maxEvol) * 80}px` }} title={`Láureas: ${e.laureas}`} />
                   <span className="text-[10px] text-slate-500">{e.mes.slice(5)}/{e.mes.slice(2, 4)}</span>
                 </div>
               ))}
