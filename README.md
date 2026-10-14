@@ -38,7 +38,8 @@ Só funciona quando não há admin ativo; depois disso, acessos são gerenciados
 
 | Coleção | Conteúdo |
 | --- | --- |
-| `integrantes/{id}` | Cadastro mestre: graduação, RE (texto), nome, nomeGuerra, função, situação, ingressoPM. Reaproveita o ID estável do cadastro existente quando identificado. |
+| `membros/{id}` | **Cadastro mestre (legado, Gestão de Caixa):** `re`, `nome`, `posto_grad`, `pago_semestre_1/2`. O módulo SÓ LÊ — nunca escreve nem adiciona campos aqui. |
+| `efetivoComplementos/{membroId}` | Complemento do módulo: `funcao`, `nomeGuerra`, `ingressoEquipe`, `ingressoPM`, `situacaoEquipe`, `camposPendentes`, `schemaVersion`. |
 | `efetivoComplementos/{integranteId}` | Complemento do módulo: ingressoEquipe, camposPendentes, schemaVersion. Nunca substitui o mestre. |
 | `moduloUsuarios/{uid}` | Autorização do módulo: equipeId, perfil (admin/editor/visualizador), integranteId vinculado, ativo. Desativar aqui não afeta a conta global. |
 | `elogios/{id}` | destinatarioIds[], solicitanteId (integrante), lancadoPorUid, situacao (`solicitado`/`publicado`/`cancelado`/`rascunho`), datas, referência, auditoria. |

@@ -72,17 +72,16 @@ export async function obterDashboard(filtro: FiltroPeriodo) {
 
 export async function obterEfetivo() {
   const s = await exigirSessao(); assertEquipe(s);
-  const integrantes = await db.listarIntegrantes();
-  const out = await Promise.all(integrantes.map(async i => ({ ...i, complemento: await db.complementoDe(i.id) })));
-  return out;
+  return db.listarIntegrantes(); // já retorna mestre `membros` + complemento mesclado
 }
 
 export async function obterFicha(integranteId: string) {
   const s = await exigirSessao(); assertEquipe(s);
-  const [i, complemento, laureas] = await Promise.all([
-    db.buscarIntegrante(integranteId), db.complementoDe(integranteId), db.laureasDoIntegrante(integranteId),
+  const [doc, laureas] = await Promise.all([
+    db.buscarIntegrante(integranteId), db.laureasDoIntegrante(integranteId),
   ]);
-  if (!i) return null;
+  if (!doc) return null;
+  const { complemento, ...i } = doc;
   const todos = await db.listarElogios(EQUIPE);
   const elogios = todos.filter(e => e.destinatarioIds.includes(integranteId));
   return { integrante: i, complemento, laureas, elogios };
@@ -229,12 +228,19 @@ export async function importarPlanilha(base64: string, nomeArquivo: string, modo
   let aplicados = 0, criados = 0;
   for (const r of resultados) {
     if (r.tipo === "complemento") {
-      batch.set(adminDb.collection(COL.integrantes).doc(r.integrante.id), { funcao: resultadosFuncao(r) }, { merge: true });
+      // Função vem da planilha e mora no complemento — `membros` (legado) não é tocado.
+      batch.set(adminDb.collection(COL.complementos).doc(r.integrante.id),
+        { integranteId: r.integrante.id, funcao: r.linha.funcao, schemaVersion: 1 }, { merge: true });
       aplicados++;
     } else if (r.tipo === "nao-encontrado" && resolucao?.criarNaoEncontrados) {
-      const novo = adminDb.collection(COL.integrantes).doc();
-      batch.create(novo, { graduacao: r.linha.graduacao, re: r.linha.re, nome: r.linha.nome, funcao: r.linha.funcao || null, situacao: "ativo", origemImportacao: hash });
-      batch.create(adminDb.collection(COL.complementos).doc(novo.id), { integranteId: novo.id, camposPendentes: ["ingressoEquipe", "ingressoPM", "nomeGuerra"], schemaVersion: 1 });
+      // Criar em `membros` só campos canônicos (re/nome/posto_grad) — afeta a Gestão de Caixa;
+      // por isso só ocorre após confirmação explícita do administrador.
+      const novo = adminDb.collection(COL.membros).doc();
+      batch.create(novo, { re: r.linha.re, nome: r.linha.nome, posto_grad: r.linha.graduacao });
+      batch.create(adminDb.collection(COL.complementos).doc(novo.id), {
+        integranteId: novo.id, funcao: r.linha.funcao || null, origemImportacao: hash,
+        camposPendentes: ["ingressoEquipe", "ingressoPM", "nomeGuerra"], schemaVersion: 1,
+      });
       criados++;
     }
     // divergentes e ambíguas nunca são resolvidos silenciosamente
@@ -246,14 +252,16 @@ export async function importarPlanilha(base64: string, nomeArquivo: string, modo
   return { modo, ...rel, aplicados, criados };
 }
 
-function resultadosFuncao(r: { tipo: "complemento"; integrante: { funcao?: string } }) { return r.integrante.funcao; }
-
 // ---------- Complemento cadastral (admin) ----------
-export async function salvarComplemento(integranteId: string, dados: { ingressoEquipe?: string; situacaoEquipe?: string }) {
+export async function salvarComplemento(integranteId: string, dados: { ingressoEquipe?: string; ingressoPM?: string; nomeGuerra?: string; funcao?: string; situacaoEquipe?: string }) {
   const s = await exigirPerfil("admin"); assertEquipe(s);
   if (dados.ingressoEquipe && !isDataCivil(dados.ingressoEquipe)) throw new ErroValidacao("Data de ingresso inválida");
+  if (dados.ingressoPM && !isDataCivil(dados.ingressoPM)) throw new ErroValidacao("Data de ingresso na PM inválida");
   const pendentes: string[] = [];
   if (!dados.ingressoEquipe) pendentes.push("ingressoEquipe");
-  await adminDb.collection(COL.complementos).doc(integranteId).set({ integranteId, ...dados, camposPendentes: pendentes, schemaVersion: 1 }, { merge: true });
+  if (!dados.ingressoPM) pendentes.push("ingressoPM");
+  // merge parcial: campos ausentes ficam ausentes; vazios não limpam valores conhecidos
+  const limpo = Object.fromEntries(Object.entries(dados).filter(([, v]) => v !== undefined && v !== ""));
+  await adminDb.collection(COL.complementos).doc(integranteId).set({ integranteId, ...limpo, camposPendentes: pendentes, schemaVersion: 1 }, { merge: true });
   await db.auditar({ acao: "complemento.salvar", entidade: "efetivoComplemento", entidadeId: integranteId, autorUid: s.uid, autorEmail: s.email });
 }

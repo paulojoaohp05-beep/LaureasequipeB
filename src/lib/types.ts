@@ -16,10 +16,15 @@ export interface Integrante {
   ingressoPM?: string; // data civil AAAA-MM-DD
 }
 
-/** Complemento deste módulo — nunca substitui o cadastro mestre. */
+/** Complemento deste módulo — nunca substitui o cadastro mestre.
+ *  No projeto gestaocaixasemestral, `membros` só tem re/nome/posto_grad/pago_*;
+ *  campos que o módulo precisa (funcao, nomeGuerra, situação, datas) moram aqui. */
 export interface ComplementoEfetivo {
   integranteId: string;
   ingressoEquipe?: string; // AAAA-MM-DD; ausente = pendente
+  ingressoPM?: string;
+  nomeGuerra?: string;
+  funcao?: string;
   situacaoEquipe?: string;
   camposPendentes?: string[];
   schemaVersion: number;

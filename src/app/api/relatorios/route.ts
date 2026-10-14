@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
     let buf: Buffer; let nome = `${tipo}.xlsx`;
 
     if (tipo === "efetivo") {
-      const comp = await Promise.all(integrantes.map(async i => ({ ...i, ingressoEquipe: (await db.complementoDe(i.id))?.ingressoEquipe })));
+      const comp = integrantes.map(i => ({ ...i, ingressoEquipe: i.complemento?.ingressoEquipe }));
       buf = await xlsxEfetivo(comp, filtros);
     } else if (tipo === "elogios") {
       const todos = await db.listarElogios(EQUIPE);

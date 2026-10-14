@@ -1,5 +1,8 @@
 // Acesso a dados do módulo via Admin SDK. Todas as consultas são filtradas por equipe.
-// O adaptador do cadastro mestre isola os nomes de campos do legado em um único lugar.
+// ADAPTADOR DO LEGADO (projeto gestaocaixasemestral):
+//   - Cadastro mestre: coleção `membros` — campos canônicos re(string), nome(string), posto_grad(string),
+//     pago_semestre_1/pago_semestre_2(integer, pertencem à Gestão de Caixa — não tocar).
+//   - O módulo NÃO escreve em `membros`. Dados próprios vão em coleções separadas.
 import "server-only";
 import { adminDb } from "@/lib/firebase/admin";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
@@ -7,8 +10,8 @@ import { createHash } from "crypto";
 import type { Auditoria, ComplementoEfetivo, Elogio, Integrante, Laurea, UsuarioModulo } from "@/lib/types";
 
 export const COL = {
-  integrantes: "integrantes",
-  complementos: "efetivoComplementos",
+  membros: "membros",               // cadastro mestre (legado — somente leitura)
+  complementos: "efetivoComplementos", // coleção do módulo, chave = ID do doc em membros
   usuarios: "moduloUsuarios",
   elogios: "elogios",
   laureas: "laureas",
@@ -19,14 +22,38 @@ export const COL = {
 export function nowTs() { return Timestamp.now(); }
 export function hashArquivo(buf: Buffer) { return createHash("sha256").update(buf).digest("hex"); }
 
-// ---------- Integrantes ----------
-export async function listarIntegrantes(): Promise<Integrante[]> {
-  const s = await adminDb.collection(COL.integrantes).orderBy("nome").get();
-  return s.docs.map(d => ({ id: d.id, ...(d.data() as Omit<Integrante, "id">) }));
+// Mapeamento legado → visão do módulo. Campos do legado: re, nome, posto_grad.
+// Campos inexistentes no legado (funcao, nomeGuerra, situacao, ingressoPM) moram no complemento.
+function mapearMembro(id: string, d: FirebaseFirestore.DocumentData, c?: ComplementoEfetivo | null): Integrante {
+  return {
+    id,
+    re: String(d.re ?? ""),
+    nome: String(d.nome ?? ""),
+    graduacao: String(d.posto_grad ?? ""),
+    nomeGuerra: c?.nomeGuerra,
+    funcao: c?.funcao,
+    situacao: c?.situacaoEquipe ?? "ativo",
+    ingressoPM: c?.ingressoPM,
+  };
 }
-export async function buscarIntegrante(id: string): Promise<Integrante | null> {
-  const d = await adminDb.collection(COL.integrantes).doc(id).get();
-  return d.exists ? { id: d.id, ...(d.data() as Omit<Integrante, "id">) } : null;
+
+// ---------- Integrantes (mestre `membros` + complemento do módulo) ----------
+export async function listarIntegrantes(): Promise<(Integrante & { complemento: ComplementoEfetivo | null })[]> {
+  const [m, c] = await Promise.all([
+    adminDb.collection(COL.membros).orderBy("nome").get(),
+    adminDb.collection(COL.complementos).get(),
+  ]);
+  const comps = new Map(c.docs.map(d => [d.id, d.data() as ComplementoEfetivo]));
+  return m.docs.map(d => {
+    const comp = comps.get(d.id) ?? null;
+    return { ...mapearMembro(d.id, d.data(), comp), complemento: comp };
+  });
+}
+export async function buscarIntegrante(id: string): Promise<(Integrante & { complemento: ComplementoEfetivo | null }) | null> {
+  const d = await adminDb.collection(COL.membros).doc(id).get();
+  if (!d.exists) return null;
+  const comp = await complementoDe(id);
+  return { ...mapearMembro(d.id, d.data()!, comp), complemento: comp };
 }
 export async function complementoDe(integranteId: string): Promise<ComplementoEfetivo | null> {
   const d = await adminDb.collection(COL.complementos).doc(integranteId).get();

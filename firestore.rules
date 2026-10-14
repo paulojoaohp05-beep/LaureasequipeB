@@ -20,10 +20,13 @@ service cloud.firestore {
     function ehEditor() { return usuarioModulo() && perfil() in ["admin", "editor"]; }
     function mesmaEquipe(d) { return usuarioModulo() && d.equipeId == equipe(); }
 
-    match /integrantes/{id} {
+    // `membros` é o cadastro mestre da Gestão de Caixa — ADITIVO: não sobrescrever
+    // a regra existente dessa coleção. Esta regra só adiciona leitura ao módulo;
+    // REVISAR a regra atual antes de mesclar (regra permissiva existente continua valendo).
+    match /membros/{id} {
       allow read: if usuarioModulo();
-      // Escrita cadastral somente via servidor (Admin SDK) — importação assistida.
-      allow write: if false;
+      // Escrita no cadastro mestre continua 100% da Gestão de Caixa (regras atuais).
+      // O módulo nunca escreve aqui; novos campos do módulo vivem em efetivoComplementos.
     }
 
     match /efetivoComplementos/{id} {

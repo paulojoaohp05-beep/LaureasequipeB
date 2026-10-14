@@ -92,7 +92,7 @@ export function lerPlanilha(buffer: Buffer | ArrayBuffer): LeituraPlanilha {
 
 export type ResultadoLinha =
   | { tipo: "inalterado"; integrante: Integrante }
-  | { tipo: "complemento"; integrante: Integrante; campos: string[] }
+  | { tipo: "complemento"; integrante: Integrante; campos: string[]; linha: LinhaPlanilha }
   | { tipo: "divergente"; integrante: Integrante; diffs: { campo: string; planilha: string; cadastro: string }[] }
   | { tipo: "nao-encontrado"; linha: LinhaPlanilha }
   | { tipo: "ambiguas"; linha: LinhaPlanilha; candidatos: Integrante[] };
@@ -123,7 +123,7 @@ export function reconciliar(linhas: LinhaPlanilha[], cadastro: Integrante[]): {
     if (l.graduacao && c.graduacao && l.graduacao !== c.graduacao) diffs.push({ campo: "graduacao", planilha: l.graduacao, cadastro: c.graduacao });
     if (l.nome && c.nome && l.nome !== c.nome) diffs.push({ campo: "nome", planilha: l.nome, cadastro: c.nome });
     if (l.funcao && (c.funcao ?? "") !== l.funcao) {
-      if (!c.funcao) { resumo.complementos++; resultados.push({ tipo: "complemento", integrante: c, campos: ["funcao"] }); continue; }
+      if (!c.funcao) { resumo.complementos++; resultados.push({ tipo: "complemento", integrante: c, campos: ["funcao"], linha: l }); continue; }
       diffs.push({ campo: "funcao", planilha: l.funcao, cadastro: c.funcao });
     }
     if (diffs.length) { resumo.divergencias++; resultados.push({ tipo: "divergente", integrante: c, diffs }); }
