@@ -12,7 +12,19 @@ export function DashboardClient({ dados, filtro }: { dados: Dados; filtro: Filtr
     p.set(k, v);
     router.push(`/?${p.toString()}`);
   }
-  const maxEvol = Math.max(1, ...dados.evolucao.map(e => e.elogios + e.laureas));
+  const evolucao = dados.evolucao;
+  const maxBruto = Math.max(0, ...evolucao.map(e => Math.max(e.elogios, e.laureas)));
+  const passo = Math.max(1, Math.ceil(maxBruto / 4));
+  const yMax = Math.max(4, passo * 4);
+  const ticks = [0, 1, 2, 3, 4].map(i => i * (yMax / 4));
+  // Geometria do gráfico (viewBox 600x220)
+  const ML = 36, MR = 8, MT = 18, MB = 26;
+  const W = 600, H = 220, PW = W - ML - MR, PH = H - MT - MB;
+  const slotW = evolucao.length ? PW / evolucao.length : PW;
+  const barW = Math.min(28, Math.max(4, slotW / 2 - 3));
+  const rotuloACada = evolucao.length > 8 ? 2 : 1;
+  const vazio = evolucao.every(e => e.elogios === 0 && e.laureas === 0);
+  const yOf = (v: number) => MT + PH - (v / yMax) * PH;
 
   const criterioLabel = { solicitacao: "Data da solicitação", publicacao: "Data de publicação", concessao: "Data da concessão" }[filtro.criterio];
 
@@ -20,7 +32,7 @@ export function DashboardClient({ dados, filtro }: { dados: Dados; filtro: Filtr
     <div className="flex flex-col gap-6">
       <div className="print-only">
         <h1 className="text-xl font-semibold">Controle de Láureas — Equipe B · Dashboard</h1>
-        <p className="text-sm">Período: {formatBR(dados.de)} a {formatBR(dados.ate)} · Critério: {criterioLabel} · Gerado em {new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}</p>
+        <p className="text-sm" suppressHydrationWarning>Período: {formatBR(dados.de)} a {formatBR(dados.ate)} · Critério: {criterioLabel} · Gerado em {new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}</p>
       </div>
       <div className="no-print flex flex-col items-stretch gap-3 rounded-lg border border-slate-200 bg-white p-4 sm:flex-row sm:flex-wrap sm:items-end">
         <label className="text-sm">Período
@@ -84,17 +96,40 @@ export function DashboardClient({ dados, filtro }: { dados: Dados; filtro: Filtr
 
         <section className="break-inside-avoid rounded-lg border border-slate-200 bg-white p-4">
           <h2 className="mb-3 font-semibold text-[#1f3a5f]">Evolução mensal</h2>
-          {dados.evolucao.length === 0 ? <p className="text-sm text-slate-500">Nenhum registro no período.</p> : (
-            <div className="flex items-end gap-2">
-              {dados.evolucao.map(e => (
-                <div key={e.mes} className="flex flex-1 flex-col items-center gap-1">
-                  <div className="bar-elogios w-full rounded-t bg-[#1f3a5f]" style={{ height: `${(e.elogios / maxEvol) * 80}px` }} title={`Elogios: ${e.elogios}`} />
-                  <div className="bar-laureas w-full rounded-t bg-[#c9a227]" style={{ height: `${(e.laureas / maxEvol) * 80}px` }} title={`Láureas: ${e.laureas}`} />
-                  <span className="text-[10px] text-slate-500">{e.mes.slice(5)}/{e.mes.slice(2, 4)}</span>
-                </div>
-              ))}
-            </div>
-          )}
+          <svg viewBox={`0 0 ${W} ${H}`} width="100%" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Evolução mensal de elogios e láureas">
+            {ticks.map(t => (
+              <g key={t}>
+                <line x1={ML} y1={yOf(t)} x2={W - MR} y2={yOf(t)} stroke="#e2e8f0" strokeWidth={1} />
+                <text x={ML - 5} y={yOf(t) + 3} textAnchor="end" fontSize={9} fill="#64748b">{t}</text>
+              </g>
+            ))}
+            <line x1={ML} y1={MT + PH} x2={W - MR} y2={MT + PH} stroke="#94a3b8" strokeWidth={1} />
+            {evolucao.map((e, idx) => {
+              const cx = ML + slotW * idx + slotW / 2;
+              return (
+                <g key={e.mes}>
+                  {e.elogios > 0 && (
+                    <text x={cx - barW / 2 - 1} y={yOf(e.elogios) - 3} textAnchor="middle" fontSize={10} fill="#1f3a5f">{e.elogios}</text>
+                  )}
+                  {e.laureas > 0 && (
+                    <text x={cx + barW / 2 + 1} y={yOf(e.laureas) - 3} textAnchor="middle" fontSize={10} fill="#92690f">{e.laureas}</text>
+                  )}
+                  <rect className="bar-elogios" x={cx - barW - 1} y={yOf(e.elogios)} width={barW} height={Math.max(0, MT + PH - yOf(e.elogios))} fill="#1f3a5f">
+                    <title>{`Elogios: ${e.elogios}`}</title>
+                  </rect>
+                  <rect className="bar-laureas" x={cx + 1} y={yOf(e.laureas)} width={barW} height={Math.max(0, MT + PH - yOf(e.laureas))} fill="#c9a227">
+                    <title>{`Láureas: ${e.laureas}`}</title>
+                  </rect>
+                  {idx % rotuloACada === 0 && (
+                    <text x={cx} y={H - 8} textAnchor="middle" fontSize={9} fill="#64748b">{e.mes.slice(5)}/{e.mes.slice(2, 4)}</text>
+                  )}
+                </g>
+              );
+            })}
+            {vazio && (
+              <text x={W / 2} y={MT + PH / 2} textAnchor="middle" fontSize={11} fill="#94a3b8">Nenhum registro no período.</text>
+            )}
+          </svg>
           <p className="mt-2 text-xs text-slate-500"><span className="text-[#1f3a5f]">■</span> elogios &nbsp;<span className="text-[#c9a227]">■</span> láureas</p>
         </section>
 

@@ -140,12 +140,10 @@ body {
     margin-bottom: 6px;
   }
   .bar-elogios {
-    background: #1f3a5f !important;
-    min-height: 2px;
+    fill: #1f3a5f !important;
   }
   .bar-laureas {
-    background: #c9a227 !important;
-    min-height: 2px;
+    fill: #c9a227 !important;
   }
   thead {
     display: table-header-group !important;

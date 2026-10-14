@@ -43,11 +43,20 @@ export async function obterDashboard(filtro: FiltroPeriodo) {
   }
   const participacao = [...porSargento.entries()].map(([id, v]) => ({ sargento: sgtNome.get(id) ?? id, ...v }));
 
-  // Evolução mensal
-  const porMes = new Map<string, { elogios: number; laureas: number }>();
-  for (const e of elogiosPeriodo) { const m = dataElogio(e)!.slice(0, 7); const v = porMes.get(m) ?? { elogios: 0, laureas: 0 }; v.elogios++; porMes.set(m, v); }
-  for (const l of laureasPeriodo) { const m = l.dataConcessao.slice(0, 7); const v = porMes.get(m) ?? { elogios: 0, laureas: 0 }; v.laureas++; porMes.set(m, v); }
-  const evolucao = [...porMes.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([mes, v]) => ({ mes, ...v }));
+  // Evolução mensal — todos os meses entre de/ate, inclusive com zero
+  const meses: string[] = [];
+  {
+    let [ay, am] = de.slice(0, 7).split("-").map(Number);
+    const [by, bm] = ate.slice(0, 7).split("-").map(Number);
+    while ((ay < by || (ay === by && am <= bm)) && meses.length < 36) {
+      meses.push(`${ay}-${String(am).padStart(2, "0")}`);
+      if (++am > 12) { am = 1; ay++; }
+    }
+  }
+  const porMes = new Map<string, { elogios: number; laureas: number }>(meses.map(m => [m, { elogios: 0, laureas: 0 }]));
+  for (const e of elogiosPeriodo) { const m = dataElogio(e)!.slice(0, 7); const v = porMes.get(m); if (v) v.elogios++; }
+  for (const l of laureasPeriodo) { const v = porMes.get(l.dataConcessao.slice(0, 7)); if (v) v.laureas++; }
+  const evolucao = meses.map(mes => ({ mes, ...porMes.get(mes)! }));
 
   // Distribuição por grau de láurea (grau mais alto registrado; falta de histórico ≠ zero confirmado)
   const grauMaior = new Map<string, number>();
