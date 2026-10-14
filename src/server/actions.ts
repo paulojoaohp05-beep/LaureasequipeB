@@ -72,7 +72,24 @@ export async function obterDashboard(filtro: FiltroPeriodo) {
 
 export async function obterEfetivo() {
   const s = await exigirSessao(); assertEquipe(s);
-  return db.listarIntegrantes(); // já retorna mestre `membros` + complemento mesclado
+  const [integrantes, elogios, laureas] = await Promise.all([
+    db.listarIntegrantes(), db.listarElogios(EQUIPE), db.listarLaureas(EQUIPE),
+  ]);
+  // Resumo de reconhecimentos por integrante: nº de elogios publicados + grau de láurea vigente.
+  const elogiosPor = new Map<string, number>();
+  for (const e of elogios) if (e.situacao === "publicado") for (const d of e.destinatarioIds) elogiosPor.set(d, (elogiosPor.get(d) ?? 0) + 1);
+  // Grau vigente = maior grau concedido; em empate, o mais recente.
+  const grauPor = new Map<string, { grau: string; data: string }>();
+  for (const l of laureas) {
+    const g = parseInt(l.grau) || 0;
+    const at = grauPor.get(l.integranteId);
+    if (!at || g > parseInt(at.grau) || (g === parseInt(at.grau) && l.dataConcessao > at.data)) grauPor.set(l.integranteId, { grau: l.grau, data: l.dataConcessao });
+  }
+  return integrantes.map(i => ({
+    ...i,
+    totalElogiosPublicados: elogiosPor.get(i.id) ?? null, // null = sem registro (não presume zero confirmado)
+    laureaVigente: grauPor.get(i.id) ?? null,
+  }));
 }
 
 export async function obterFicha(integranteId: string) {

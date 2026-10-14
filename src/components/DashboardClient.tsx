@@ -59,7 +59,7 @@ export function DashboardClient({ dados, filtro }: { dados: Dados; filtro: Filtr
 
       <div className="grid gap-4 md:grid-cols-2">
         <section className="rounded-lg border border-slate-200 bg-white p-4">
-          <h2 className="mb-3 font-semibold text-[#1f3a5f]">Participação por sargento solicitante</h2>
+          <h2 className="mb-3 font-semibold text-[#1f3a5f]">Elogios × Sargento</h2>
           {dados.participacao.length === 0 ? <p className="text-sm text-slate-500">Nenhum registro no período.</p> : (
             <table className="w-full text-sm">
               <thead><tr className="text-left text-slate-600"><th className="pb-2">Sargento</th><th className="pb-2">Solicitações</th><th className="pb-2">Publicações</th><th className="pb-2">Pendências</th></tr></thead>

@@ -4,7 +4,11 @@ import { useRouter } from "next/navigation";
 import { formatBR } from "@/lib/dates";
 import type { Integrante, ComplementoEfetivo } from "@/lib/types";
 
-type Item = Integrante & { complemento: ComplementoEfetivo | null };
+type Item = Integrante & {
+  complemento: ComplementoEfetivo | null;
+  totalElogiosPublicados: number | null;
+  laureaVigente: { grau: string; data: string } | null;
+};
 
 export function EfetivoClient({ itens }: { itens: Item[] }) {
   const [q, setQ] = useState("");
@@ -49,7 +53,7 @@ export function EfetivoClient({ itens }: { itens: Item[] }) {
       <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
         <table className="w-full min-w-[720px] text-sm">
           <thead className="bg-slate-50 text-left text-slate-600">
-            <tr><th className="px-3 py-2">Graduação</th><th className="px-3 py-2">RE</th><th className="px-3 py-2">Nome</th><th className="px-3 py-2">Função</th><th className="px-3 py-2">Ingresso equipe</th><th className="px-3 py-2">Situação</th></tr>
+            <tr><th className="px-3 py-2">Graduação</th><th className="px-3 py-2">RE</th><th className="px-3 py-2">Nome</th><th className="px-3 py-2">Função</th><th className="px-3 py-2">Elogios</th><th className="px-3 py-2">Láurea</th><th className="px-3 py-2">Ingresso equipe</th><th className="px-3 py-2">Situação</th></tr>
           </thead>
           <tbody>
             {lista.map(i => (
@@ -58,6 +62,8 @@ export function EfetivoClient({ itens }: { itens: Item[] }) {
                 <td className="px-3 py-2 font-mono">{i.re}</td>
                 <td className="px-3 py-2">{i.nome}{i.nomeGuerra ? ` (${i.nomeGuerra})` : ""}</td>
                 <td className="px-3 py-2">{i.funcao || "—"}</td>
+                <td className="px-3 py-2">{i.totalElogiosPublicados === null ? <span className="text-xs text-slate-400">sem registro</span> : i.totalElogiosPublicados}</td>
+                <td className="px-3 py-2">{i.laureaVigente ? <>{i.laureaVigente.grau} <span className="text-xs text-slate-500">({formatBR(i.laureaVigente.data)})</span></> : <span className="text-xs text-slate-400">sem registro</span>}</td>
                 <td className="px-3 py-2">{formatBR(i.complemento?.ingressoEquipe)}{!i.complemento?.ingressoEquipe && <span className="text-xs text-amber-700"> pendente</span>}</td>
                 <td className="px-3 py-2">{i.situacao ?? "ativo"}</td>
               </tr>

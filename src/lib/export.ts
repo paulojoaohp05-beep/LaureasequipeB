@@ -20,11 +20,11 @@ function meta(ws: ExcelJS.Worksheet, filtros: string, geradoEm: Date) {
   ws.spliceRows(1, 0, [`Relatório gerado em ${geradoEm.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })} — filtros: ${filtros}`], []);
 }
 
-export async function xlsxEfetivo(items: (Integrante & { ingressoEquipe?: string })[], filtros: string): Promise<Buffer> {
+export async function xlsxEfetivo(items: (Integrante & { ingressoEquipe?: string; totalElogiosPublicados?: number | null; laureaVigente?: { grau: string; data: string } | null })[], filtros: string): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet("Efetivo");
-  cabecalho(ws, ["Graduação", "RE", "Nome", "Nome de guerra", "Função", "Situação", "Ingresso PM", "Ingresso na equipe"]);
-  for (const i of items) ws.addRow([seguro(i.graduacao), seguro(i.re), seguro(i.nome), seguro(i.nomeGuerra), seguro(i.funcao), seguro(i.situacao), formatBR(i.ingressoPM), formatBR(i.ingressoEquipe)]);
+  cabecalho(ws, ["Graduação", "RE", "Nome", "Nome de guerra", "Função", "Situação", "Ingresso PM", "Ingresso na equipe", "Elogios publicados", "Láurea vigente", "Data láurea"]);
+  for (const i of items) ws.addRow([seguro(i.graduacao), seguro(i.re), seguro(i.nome), seguro(i.nomeGuerra), seguro(i.funcao), seguro(i.situacao), formatBR(i.ingressoPM), formatBR(i.ingressoEquipe), i.totalElogiosPublicados ?? "", i.laureaVigente?.grau ?? "", i.laureaVigente ? formatBR(i.laureaVigente.data) : ""]);
   meta(ws, filtros, new Date());
   ws.getColumn(2).numFmt = "@"; // RE como texto
   return Buffer.from(await wb.xlsx.writeBuffer());
