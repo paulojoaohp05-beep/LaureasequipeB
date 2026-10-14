@@ -1,0 +1,60 @@
+rules_version = '2';
+// Regras do MÓDULO reconhecimentos/Equipe B.
+// ADITIVAS: revisar e mesclar com as regras existentes do projeto real antes de publicar.
+// Regras permissivas antigas continuam valendo — validar isolamento com os emuladores.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function autenticado() { return request.auth != null; }
+    function usuarioModulo() {
+      return autenticado() && exists(/databases/$(database)/documents/moduloUsuarios/$(request.auth.uid))
+        && get(/databases/$(database)/documents/moduloUsuarios/$(request.auth.uid)).data.ativo == true;
+    }
+    function perfil() {
+      return get(/databases/$(database)/documents/moduloUsuarios/$(request.auth.uid)).data.perfil;
+    }
+    function equipe() {
+      return get(/databases/$(database)/documents/moduloUsuarios/$(request.auth.uid)).data.equipeId;
+    }
+    function ehAdmin() { return usuarioModulo() && perfil() == "admin"; }
+    function ehEditor() { return usuarioModulo() && perfil() in ["admin", "editor"]; }
+    function mesmaEquipe(d) { return usuarioModulo() && d.equipeId == equipe(); }
+
+    match /integrantes/{id} {
+      allow read: if usuarioModulo();
+      // Escrita cadastral somente via servidor (Admin SDK) — importação assistida.
+      allow write: if false;
+    }
+
+    match /efetivoComplementos/{id} {
+      allow read: if usuarioModulo();
+      allow write: if false;
+    }
+
+    match /moduloUsuarios/{uid} {
+      // Cada usuário lê apenas o próprio documento de autorização; admins leem todos.
+      allow read: if autenticado() && (request.auth.uid == uid || ehAdmin());
+      allow write: if false; // somente servidor
+    }
+
+    match /elogios/{id} {
+      allow read: if usuarioModulo() && mesmaEquipe(resource.data);
+      allow write: if false; // somente servidor (transições validadas nas server actions)
+    }
+
+    match /laureas/{id} {
+      allow read: if usuarioModulo() && mesmaEquipe(resource.data);
+      allow write: if false;
+    }
+
+    match /auditoria/{id} {
+      allow read: if ehAdmin();
+      allow write: if false; // gerada somente pelo servidor
+    }
+
+    match /importacoes/{id} {
+      allow read: if ehAdmin();
+      allow write: if false;
+    }
+  }
+}

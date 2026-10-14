@@ -1,0 +1,21 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "elogios",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "equipeId", "order": "ASCENDING" },
+        { "fieldPath": "dataSolicitacao", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "laureas",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "integranteId", "order": "ASCENDING" },
+        { "fieldPath": "dataConcessao", "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

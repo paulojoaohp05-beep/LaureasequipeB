@@ -1,36 +1,75 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Controle de Láureas — Equipe B
 
-## Getting Started
+Sistema web para controle do efetivo, elogios e láureas da Equipe B. Next.js + TypeScript + Firebase (Auth + Firestore), deploy na Vercel. Interface em pt-BR, datas `dd/MM/aaaa`, fuso `America/Sao_Paulo`.
 
-First, run the development server:
+## Executar
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npm run dev        # app em http://localhost:3000
+npm test           # testes unitários (vitest)
+npm run build      # typecheck + build de produção
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Firebase Emulators (desenvolvimento/preview sem dados reais)
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm i -g firebase-tools
+firebase emulators:start   # Firestore :8080, Auth :9099, UI :4000
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Com `NEXT_PUBLIC_USE_EMULATORS=true`, `FIRESTORE_EMULATOR_HOST=127.0.0.1:8080` e `FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099` no `.env.local`, o app usa somente emuladores — nenhuma escrita no cadastro real.
 
-## Learn More
+## Variáveis de ambiente
 
-To learn more about Next.js, take a look at the following resources:
+Ver `.env.example`. Credenciais de serviço (`FIREBASE_*`) ficam só no servidor; configuração do cliente usa `NEXT_PUBLIC_`. Na Vercel, configurar separadamente em Development, Preview e Production. Preview deve apontar para emulador/projeto de teste, não para o cadastro real.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Primeiro administrador (bootstrap)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Após criar a conta do administrador no Firebase Authentication (console → Users → Add user):
 
-## Deploy on Vercel
+```bash
+node scripts/bootstrap-admin.mjs <UID> <email>
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Só funciona quando não há admin ativo; depois disso, acessos são gerenciados na tela **Administração**. O sistema impede remover/desativar o último administrador.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Modelo de dados (Firestore)
+
+| Coleção | Conteúdo |
+| --- | --- |
+| `integrantes/{id}` | Cadastro mestre: graduação, RE (texto), nome, nomeGuerra, função, situação, ingressoPM. Reaproveita o ID estável do cadastro existente quando identificado. |
+| `efetivoComplementos/{integranteId}` | Complemento do módulo: ingressoEquipe, camposPendentes, schemaVersion. Nunca substitui o mestre. |
+| `moduloUsuarios/{uid}` | Autorização do módulo: equipeId, perfil (admin/editor/visualizador), integranteId vinculado, ativo. Desativar aqui não afeta a conta global. |
+| `elogios/{id}` | destinatarioIds[], solicitanteId (integrante), lancadoPorUid, situacao (`solicitado`/`publicado`/`cancelado`/`rascunho`), datas, referência, auditoria. |
+| `laureas/{id}` | integranteId, grau (1º–5º), dataConcessao, dataPublicacao, referencia, solicitanteId opcional. |
+| `auditoria/{id}` | Gerada só no servidor (transações). Não editável/apagável por clientes. |
+| `importacoes/{id}` | Lotes de importação: hash do arquivo, modo, resumo. |
+
+> **Pendente de confirmação:** o projeto Firebase real (ID, banco, caminhos e esquema do cadastro) ainda não foi informado. Os nomes acima são a estrutura do módulo implementada e testada com emuladores. Quando o projeto real for identificado, o adaptador em `src/server/db.ts` concentra os nomes de campos do legado, e os eventos ficam ligados ao ID canônico do integrante — sem duplicar o cadastro mestre.
+
+## Regras e índices
+
+`firestore.rules` + `firestore.indexes.json` — **aditivas** ao projeto existente. Antes de publicar em produção, mesclar com as regras atuais e validar que regras permissivas antigas não concedem acesso indevido. Clientes não escrevem diretamente em nenhuma coleção do módulo: toda escrita passa por server actions com Firebase Admin SDK e verificação de sessão/perfil/equipe.
+
+## Importação da planilha
+
+Administração → Importação de efetivo. Simulação sem escrita, relatório por linha (inalterado / complemento / divergente / não encontrado / ambíguo), criação de novos somente após confirmação. RE tratado como texto; linhas ambíguas e divergências nunca são resolvidas silenciosamente; campos vazios não apagam dados existentes. Reprocessar a mesma planilha não duplica registros.
+
+## Matriz de acesso
+
+| Ação | Admin | Editor | Visualizador |
+| --- | --- | --- | --- |
+| Consultar/exportar | ✓ | ✓ | ✓ |
+| Criar solicitação | ✓ | ✓ (solicitante = seu vínculo) | ✗ |
+| Editar não publicada | todas | só as próprias | ✗ |
+| Publicar/cancelar | ✓ | ✗ | ✗ |
+| Láureas | ✓ | ✗ | ✗ |
+| Gerenciar acessos | ✓ | ✗ | ✗ |
+
+## Pendências conhecidas
+
+- **Integração real com o Firebase do cadastro:** projeto/banco/caminhos não informados — implementado e testado em emuladores; integração real pendente de credenciais e diagnóstico somente leitura.
+- **Nomenclatura dos graus de láurea** (1º–5º) a confirmar com a equipe.
+- **Aptidão/interstício/medalha** não implementados — critérios não fornecidos.
+- **MFA/TOTP** não implementado (escolhido e-mail/senha).

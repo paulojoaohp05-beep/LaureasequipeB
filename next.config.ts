@@ -2,8 +2,8 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   /* config options here */
-  cacheComponents: true,
-  partialPrefetching: true,
+  // Todas as páginas são autenticadas/dinâmicas; Cache Components desativado.
+  cacheComponents: false,
   turbopack: {
     rules: {
       "*.css": {
