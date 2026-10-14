@@ -1,6 +1,7 @@
 "use client";
 import { useMemo, useState, useTransition } from "react";
 import { criarElogio, publicarElogio, cancelarElogio } from "@/server/actions";
+import { IntegrantePicker } from "./IntegrantePicker";
 import { formatBR } from "@/lib/dates";
 import type { Elogio, Integrante } from "@/lib/types";
 
@@ -62,16 +63,11 @@ export function ElogiosClient({ elogios, integrantes }: { elogios: Elogio[]; int
             <textarea name="descricao" rows={3} className="mt-1 w-full rounded border border-slate-300 px-3 py-1.5" />
           </label>
           <label className="text-sm">Destinatário(s)
-            <select name="destinatarios" multiple required size={5} className="mt-1 w-full rounded border border-slate-300 px-2 py-1">
-              {integrantes.map(i => <option key={i.id} value={i.id}>{i.graduacao} {i.nomeGuerra || i.nome}</option>)}
-            </select>
+            <div className="mt-1"><IntegrantePicker name="destinatarios" integrantes={integrantes} multi required placeholder="Digite para adicionar…" /></div>
           </label>
           <div className="flex flex-col gap-3">
             <label className="text-sm">Sargento solicitante
-              <select name="solicitante" required className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5">
-                <option value="">Selecione…</option>
-                {integrantes.map(i => <option key={i.id} value={i.id}>{i.graduacao} {i.nomeGuerra || i.nome}</option>)}
-              </select>
+              <div className="mt-1"><IntegrantePicker name="solicitante" integrantes={integrantes} required placeholder="Digite nome ou RE…" /></div>
             </label>
             <label className="text-sm">Data da solicitação
               <input name="dataSolicitacao" type="date" className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5" />

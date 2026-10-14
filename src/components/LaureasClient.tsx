@@ -1,6 +1,7 @@
 "use client";
 import { useMemo, useState, useTransition } from "react";
 import { registrarLaurea } from "@/server/actions";
+import { IntegrantePicker } from "./IntegrantePicker";
 import { formatBR } from "@/lib/dates";
 import type { Integrante, Laurea } from "@/lib/types";
 
@@ -37,10 +38,7 @@ export function LaureasClient({ laureas, integrantes }: { laureas: Laurea[]; int
       {aberto && (
         <form action={enviar} className="grid gap-3 rounded-lg border border-slate-200 bg-white p-4 md:grid-cols-3">
           <label className="text-sm">Integrante
-            <select name="integrante" required className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5">
-              <option value="">Selecione…</option>
-              {integrantes.map(i => <option key={i.id} value={i.id}>{i.graduacao} {i.nomeGuerra || i.nome}</option>)}
-            </select>
+            <div className="mt-1"><IntegrantePicker name="integrante" integrantes={integrantes} required placeholder="Digite nome ou RE…" /></div>
           </label>
           <label className="text-sm">Grau
             <select name="grau" required className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5">
@@ -57,10 +55,7 @@ export function LaureasClient({ laureas, integrantes }: { laureas: Laurea[]; int
             <input name="referencia" className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5" />
           </label>
           <label className="text-sm">Solicitante (se conhecido)
-            <select name="solicitante" className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5">
-              <option value="">—</option>
-              {integrantes.map(i => <option key={i.id} value={i.id}>{i.nomeGuerra || i.nome}</option>)}
-            </select>
+            <div className="mt-1"><IntegrantePicker name="solicitante" integrantes={integrantes} placeholder="Digite nome ou RE…" /></div>
           </label>
           <label className="text-sm md:col-span-3">Observação
             <input name="observacao" className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5" />
