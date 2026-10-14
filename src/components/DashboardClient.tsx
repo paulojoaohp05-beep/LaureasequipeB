@@ -41,13 +41,14 @@ export function DashboardClient({ dados, filtro }: { dados: Dados; filtro: Filtr
         <span className="text-xs text-slate-500">Período aplicado: {formatBR(dados.de)} a {formatBR(dados.ate)}</span>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-6">
         {[
           ["Efetivo ativo", dados.efetivoAtivo, "total atual"],
           ["Elogios solicitados", dados.elogiosSolicitados, "no período"],
           ["Elogios publicados", dados.elogiosPublicados, "no período"],
           ["Láureas concedidas", dados.laureasPeriodo, "no período"],
           ["Pendentes", dados.pendentes, "aguardando publicação"],
+          ["Negados", dados.elogiosNegados, "no período"],
         ].map(([t, v, s]) => (
           <div key={t as string} className="rounded-lg border border-slate-200 bg-white p-4">
             <p className="text-sm text-slate-600">{t}</p>
@@ -62,11 +63,11 @@ export function DashboardClient({ dados, filtro }: { dados: Dados; filtro: Filtr
           <h2 className="mb-3 font-semibold text-[#1f3a5f]">Elogios × Sargento</h2>
           {dados.participacao.length === 0 ? <p className="text-sm text-slate-500">Nenhum registro no período.</p> : (
             <table className="w-full text-sm">
-              <thead><tr className="text-left text-slate-600"><th className="pb-2">Sargento</th><th className="pb-2">Solicitações</th><th className="pb-2">Publicações</th><th className="pb-2">Pendências</th></tr></thead>
+              <thead><tr className="text-left text-slate-600"><th className="pb-2">Sargento</th><th className="pb-2">Solicitações</th><th className="pb-2">Publicações</th><th className="pb-2">Pendências</th><th className="pb-2">Negados</th></tr></thead>
               <tbody>
                 {dados.participacao.map(p => (
                   <tr key={p.sargento} className="border-t border-slate-100">
-                    <td className="py-1.5">{p.sargento}</td><td>{p.solicitacoes}</td><td>{p.publicacoes}</td><td>{p.pendencias}</td>
+                    <td className="py-1.5">{p.sargento}</td><td>{p.solicitacoes}</td><td>{p.publicacoes}</td><td>{p.pendencias}</td><td>{p.negados}</td>
                   </tr>
                 ))}
               </tbody>

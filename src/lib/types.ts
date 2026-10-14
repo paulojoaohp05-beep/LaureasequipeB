@@ -41,7 +41,7 @@ export interface UsuarioModulo {
   criadoPor?: string;
 }
 
-export type SituacaoElogio = "rascunho" | "solicitado" | "publicado" | "cancelado";
+export type SituacaoElogio = "rascunho" | "solicitado" | "publicado" | "negado" | "cancelado";
 
 export interface Elogio {
   id: string;
@@ -56,12 +56,15 @@ export interface Elogio {
   dataPublicacao?: string;
   referencia?: string; // boletim/documento
   justificativaCancelamento?: string;
+  justificativaNegativa?: string;
   criadoEm?: string;
   atualizadoEm?: string;
   publicadoEm?: string;
   canceladoEm?: string;
+  negadoEm?: string;
   publicadoPorUid?: string;
   canceladoPorUid?: string;
+  negadoPorUid?: string;
 }
 
 export interface Laurea {

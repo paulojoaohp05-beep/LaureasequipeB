@@ -36,10 +36,10 @@ export async function GET(req: NextRequest) {
       buf = await xlsxLaureas(items, nomes, filtros);
     } else if (tipo === "participacao") {
       const todos = await db.listarElogios(EQUIPE);
-      const mapa = new Map<string, { solicitacoes: number; publicacoes: number; pendencias: number }>();
+      const mapa = new Map<string, { solicitacoes: number; publicacoes: number; pendencias: number; negados: number }>();
       for (const e of todos.filter(e => dentroPeriodo(criterio === "publicacao" ? e.dataPublicacao : e.dataSolicitacao, de, ate) === true)) {
-        const v = mapa.get(e.solicitanteId) ?? { solicitacoes: 0, publicacoes: 0, pendencias: 0 };
-        v.solicitacoes++; if (e.situacao === "publicado") v.publicacoes++; if (e.situacao === "solicitado") v.pendencias++;
+        const v = mapa.get(e.solicitanteId) ?? { solicitacoes: 0, publicacoes: 0, pendencias: 0, negados: 0 };
+        v.solicitacoes++; if (e.situacao === "publicado") v.publicacoes++; if (e.situacao === "solicitado") v.pendencias++; if (e.situacao === "negado") v.negados++;
         mapa.set(e.solicitanteId, v);
       }
       buf = await xlsxParticipacao([...mapa.entries()].map(([id, v]) => ({ sargento: nomes.get(id) ?? id, ...v })), filtros);

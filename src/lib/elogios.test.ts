@@ -10,7 +10,9 @@ const base: Elogio = {
 describe("transições", () => {
   it("solicitado → publicado/cancelado; publicado é terminal", () => {
     expect(podeTransitar("solicitado", "publicado")).toBe(true);
+    expect(podeTransitar("solicitado", "negado")).toBe(true);
     expect(podeTransitar("solicitado", "cancelado")).toBe(true);
+    expect(podeTransitar("negado", "publicado")).toBe(false);
     expect(podeTransitar("publicado", "cancelado")).toBe(false);
     expect(podeTransitar("cancelado", "solicitado")).toBe(false);
   });

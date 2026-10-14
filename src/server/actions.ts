@@ -29,14 +29,15 @@ export async function obterDashboard(filtro: FiltroPeriodo) {
   const elogiosPeriodo = elogios.filter(e => dentroPeriodo(dataElogio(e), de, ate) === true);
   const laureasPeriodo = laureas.filter(l => dentroPeriodo(l.dataConcessao, de, ate) === true);
 
-  const porSargento = new Map<string, { solicitacoes: number; publicacoes: number; pendencias: number }>();
+  const porSargento = new Map<string, { solicitacoes: number; publicacoes: number; pendencias: number; negados: number }>();
   const sgtNome = new Map(integrantes.map(i => [i.id, i.nomeGuerra || i.nome]));
   // Sargentos solicitantes sem registros: incluir todos com graduação de sgt/subten? Mantemos os que têm registros + flag "sem dados".
   for (const e of elogiosPeriodo) {
-    const p = porSargento.get(e.solicitanteId) ?? { solicitacoes: 0, publicacoes: 0, pendencias: 0 };
+    const p = porSargento.get(e.solicitanteId) ?? { solicitacoes: 0, publicacoes: 0, pendencias: 0, negados: 0 };
     p.solicitacoes++;
     if (e.situacao === "publicado") p.publicacoes++;
     if (e.situacao === "solicitado") p.pendencias++;
+    if (e.situacao === "negado") p.negados++;
     porSargento.set(e.solicitanteId, p);
   }
   const participacao = [...porSargento.entries()].map(([id, v]) => ({ sargento: sgtNome.get(id) ?? id, ...v }));
@@ -64,6 +65,7 @@ export async function obterDashboard(filtro: FiltroPeriodo) {
     elogiosPublicados: elogiosPeriodo.filter(e => e.situacao === "publicado").length,
     laureasPeriodo: laureasPeriodo.length,
     pendentes: elogios.filter(e => e.situacao === "solicitado").length,
+    elogiosNegados: elogiosPeriodo.filter(e => e.situacao === "negado").length,
     participacao, evolucao, distribuicao, semLaurea,
     ultimos: elogios.slice(0, 10).map(e => ({ id: e.id, titulo: e.titulo, situacao: e.situacao, data: dataElogio(e), destinatarios: e.destinatarioIds.map(id => sgtNome.get(id) ?? id) })),
     criterioData: filtro.criterio, de, ate,
@@ -108,7 +110,7 @@ export async function obterElogios() { const s = await exigirSessao(); assertEqu
 export async function obterLaureas() { const s = await exigirSessao(); assertEquipe(s); return db.listarLaureas(EQUIPE); }
 
 // ---------- Mutações: elogios ----------
-export async function criarElogio(input: { titulo: string; descricao?: string; destinatarioIds: string[]; solicitanteId: string; dataSolicitacao?: string }) {
+export async function criarElogio(input: { titulo: string; descricao?: string; destinatarioIds: string[]; solicitanteId: string; dataSolicitacao?: string; jaPublicado?: boolean; dataPublicacao?: string; referencia?: string }) {
   const s = await exigirSessao(); assertEquipe(s);
   if (s.usuario.perfil === "visualizador") throw new ErroValidacao("Perfil de visualização não pode criar registros");
   if (!input.titulo?.trim()) throw new ErroValidacao("Título obrigatório");
@@ -117,12 +119,24 @@ export async function criarElogio(input: { titulo: string; descricao?: string; d
   const dataSolicitacao = input.dataSolicitacao && isDataCivil(input.dataSolicitacao) ? input.dataSolicitacao : hojeSP();
 
   const ref = adminDb.collection(COL.elogios).doc();
-  const elogio = {
+  const base = {
     equipeId: EQUIPE, destinatarioIds: input.destinatarioIds, solicitanteId: input.solicitanteId,
     lancadoPorUid: s.uid, titulo: input.titulo.trim(), descricao: input.descricao?.trim() ?? "",
-    dataSolicitacao, situacao: "solicitado" as const,
+    dataSolicitacao,
     criadoEm: FieldValue.serverTimestamp(), atualizadoEm: FieldValue.serverTimestamp(),
   };
+  if (input.jaPublicado) {
+    assertPodePublicarOuCancelar(s.usuario.perfil);
+    assertPublicacaoCompleta({ dataPublicacao: input.dataPublicacao, referencia: input.referencia });
+    if (!isDataCivil(input.dataPublicacao!)) throw new ErroValidacao("Data de publicação inválida");
+    const elogio = { ...base, situacao: "publicado" as const, dataPublicacao: input.dataPublicacao!, referencia: input.referencia!.trim(), publicadoEm: FieldValue.serverTimestamp(), publicadoPorUid: s.uid };
+    await adminDb.runTransaction(async t => {
+      t.create(ref, elogio);
+      t.create(adminDb.collection(COL.auditoria).doc(), { acao: "elogio.criar-publicado", entidade: "elogio", entidadeId: ref.id, autorUid: s.uid, autorEmail: s.email, em: FieldValue.serverTimestamp() });
+    });
+    return { id: ref.id };
+  }
+  const elogio = { ...base, situacao: "solicitado" as const };
   await adminDb.runTransaction(async t => {
     t.create(ref, elogio);
     t.create(adminDb.collection(COL.auditoria).doc(), { acao: "elogio.criar", entidade: "elogio", entidadeId: ref.id, autorUid: s.uid, autorEmail: s.email, em: FieldValue.serverTimestamp() });
@@ -144,6 +158,21 @@ export async function publicarElogio(id: string, campos: { dataPublicacao: strin
     assertTransicao(e, "publicado");
     t.update(ref, { situacao: "publicado", dataPublicacao: campos.dataPublicacao, referencia: campos.referencia.trim(), publicadoEm: FieldValue.serverTimestamp(), publicadoPorUid: s.uid, atualizadoEm: FieldValue.serverTimestamp() });
     t.create(adminDb.collection(COL.auditoria).doc(), { acao: "elogio.publicar", entidade: "elogio", entidadeId: id, autorUid: s.uid, autorEmail: s.email, em: FieldValue.serverTimestamp() });
+  });
+}
+
+export async function negarElogio(id: string, justificativa: string) {
+  const s = await exigirSessao(); assertEquipe(s);
+  assertPodePublicarOuCancelar(s.usuario.perfil);
+  if (!justificativa?.trim()) throw new ErroValidacao("Justificativa obrigatória para negar");
+  const ref = adminDb.collection(COL.elogios).doc(id);
+  await adminDb.runTransaction(async t => {
+    const d = await t.get(ref);
+    if (!d.exists) throw new ErroValidacao("Registro não encontrado");
+    const e = { id: d.id, ...d.data() } as Elogio;
+    assertTransicao(e, "negado");
+    t.update(ref, { situacao: "negado", justificativaNegativa: justificativa.trim(), negadoEm: FieldValue.serverTimestamp(), negadoPorUid: s.uid, atualizadoEm: FieldValue.serverTimestamp() });
+    t.create(adminDb.collection(COL.auditoria).doc(), { acao: "elogio.negar", entidade: "elogio", entidadeId: id, autorUid: s.uid, autorEmail: s.email, em: FieldValue.serverTimestamp() });
   });
 }
 

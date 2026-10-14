@@ -3,8 +3,9 @@ import type { Elogio, Perfil, SituacaoElogio } from "./types";
 
 export const TRANSICOES: Record<SituacaoElogio, SituacaoElogio[]> = {
   rascunho: ["solicitado", "cancelado"],
-  solicitado: ["publicado", "cancelado"],
+  solicitado: ["publicado", "negado", "cancelado"],
   publicado: [],
+  negado: [],
   cancelado: [],
 };
 
