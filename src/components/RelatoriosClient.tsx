@@ -13,7 +13,7 @@ export function RelatoriosClient() {
   return (
     <div className="flex flex-col gap-4">
       <h1 className="text-lg font-semibold text-[#1f3a5f]">Relatórios (Excel .xlsx)</h1>
-      <div className="flex flex-wrap items-end gap-3 rounded-lg border border-slate-200 bg-white p-4">
+      <div className="flex flex-col items-stretch gap-3 rounded-lg border border-slate-200 bg-white p-4 sm:flex-row sm:flex-wrap sm:items-end">
         <label className="text-sm">Relatório
           <select value={tipo} onChange={e => setTipo(e.target.value)} className="mt-1 block rounded border border-slate-300 px-2 py-1.5">
             <option value="efetivo">Efetivo</option>

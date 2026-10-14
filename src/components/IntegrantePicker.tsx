@@ -39,14 +39,14 @@ export function IntegrantePicker({ name, integrantes, multi = false, required = 
         onFocus={() => setAberto(true)}
         onChange={e => { setQ(e.target.value); setAberto(true); if (!multi) setSel([]); }}
         onBlur={() => setTimeout(() => setAberto(false), 150)}
-        className="w-full rounded border border-slate-300 px-2 py-1.5" />
+        className="w-full rounded border border-slate-300 px-3 py-2" />
 
       {aberto && (
-        <ul className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded border border-slate-300 bg-white shadow-lg">
+        <ul className="absolute z-50 mt-1 max-h-[min(14rem,50vh)] w-full min-w-0 overflow-y-auto overscroll-contain rounded border border-slate-300 bg-white shadow-lg">
           {filtrados.map(i => (
             <li key={i.id}>
-              <button type="button" onMouseDown={e => { e.preventDefault(); escolher(i); }}
-                className="w-full px-3 py-1.5 text-left text-sm hover:bg-slate-100">
+              <button type="button" onPointerDown={e => { e.preventDefault(); escolher(i); }}
+                className="w-full px-3 py-2.5 text-left text-sm hover:bg-slate-100">
                 {i.graduacao} {i.nomeGuerra || i.nome} <span className="font-mono text-xs text-slate-500">RE {i.re}</span>
               </button>
             </li>

@@ -22,7 +22,7 @@ export function DashboardClient({ dados, filtro }: { dados: Dados; filtro: Filtr
         <h1 className="text-xl font-semibold">Controle de Láureas — Equipe B · Dashboard</h1>
         <p className="text-sm">Período: {formatBR(dados.de)} a {formatBR(dados.ate)} · Critério: {criterioLabel} · Gerado em {new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}</p>
       </div>
-      <div className="no-print flex flex-wrap items-end gap-3 rounded-lg border border-slate-200 bg-white p-4">
+      <div className="no-print flex flex-col items-stretch gap-3 rounded-lg border border-slate-200 bg-white p-4 sm:flex-row sm:flex-wrap sm:items-end">
         <label className="text-sm">Período
           <select value={filtro.tipo} onChange={e => setParam("periodo", e.target.value)} className="mt-1 block rounded border border-slate-300 px-2 py-1.5">
             <option value="mes-atual">Mês atual</option>
@@ -69,7 +69,7 @@ export function DashboardClient({ dados, filtro }: { dados: Dados; filtro: Filtr
         <section className="break-inside-avoid rounded-lg border border-slate-200 bg-white p-4">
           <h2 className="mb-3 font-semibold text-[#1f3a5f]">Elogios × Sargento</h2>
           {dados.participacao.length === 0 ? <p className="text-sm text-slate-500">Nenhum registro no período.</p> : (
-            <table className="w-full text-sm">
+            <table className="mobile-cards w-full text-sm">
               <thead><tr className="text-left text-slate-600"><th className="pb-2">Sargento</th><th className="pb-2">Solicitações</th><th className="pb-2">Publicações</th><th className="pb-2">Pendências</th><th className="pb-2">Negados</th></tr></thead>
               <tbody>
                 {dados.participacao.map(p => (

@@ -43,7 +43,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="mx-auto mt-16 w-full max-w-sm rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+    <div className="mx-auto mt-6 w-full max-w-sm rounded-lg border border-slate-200 bg-white p-5 shadow-sm sm:mt-16 sm:p-6">
       <h1 className="mb-1 text-lg font-semibold text-[#1f3a5f]">Controle de Láureas — Equipe B</h1>
       <p className="mb-4 text-sm text-slate-600">Acesso restrito a usuários autorizados.</p>
 

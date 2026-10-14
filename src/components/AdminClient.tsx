@@ -43,7 +43,7 @@ function Usuarios({ usuarios, integrantes }: { usuarios: UsuarioModulo[]; integr
       {erro && <p role="alert" className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{erro}</p>}
       <p className="text-xs text-slate-500">Informe o UID do Firebase Authentication do usuário. O vínculo com integrante é confirmado manualmente — nunca deduzido por e-mail ou nome.</p>
       <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
-        <table className="w-full min-w-[680px] text-sm">
+        <table className="mobile-cards w-full min-w-[680px] text-sm">
           <thead className="bg-slate-50 text-left text-slate-600"><tr><th className="px-3 py-2">UID / e-mail</th><th className="px-3 py-2">Integrante vinculado</th><th className="px-3 py-2">Perfil</th><th className="px-3 py-2">Ativo</th><th className="px-3 py-2"></th></tr></thead>
           <tbody>
             {usuarios.map(u => (
@@ -84,7 +84,7 @@ function Usuarios({ usuarios, integrantes }: { usuarios: UsuarioModulo[]; integr
 
 function Detalhes({ u, integrantes, onSalvar, pending }: { u: UsuarioModulo; integrantes: Integrante[]; onSalvar: (fd: FormData) => void; pending: boolean }) {
   return (
-    <form action={onSalvar} className="flex items-center gap-2">
+    <form action={onSalvar} className="flex flex-wrap items-center gap-2">
       <input type="hidden" name="uid" value={u.uid} />
       <input type="hidden" name="integrante" value={u.integranteId ?? ""} />
       <select name="perfil" defaultValue={u.perfil} className="rounded border border-slate-300 px-1 py-0.5 text-xs">

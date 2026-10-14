@@ -50,7 +50,7 @@ export function ElogiosClient({ elogios, integrantes, perfil }: { elogios: Elogi
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-lg font-semibold text-[#1f3a5f]">Elogios</h1>
-        <div className="flex gap-2">
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
           <select value={filtro} onChange={e => setFiltro(e.target.value)} className="rounded border border-slate-300 px-2 py-1.5 text-sm">
             <option value="">Todas as situações</option><option value="solicitado">Solicitados</option><option value="publicado">Publicados</option><option value="negado">Negados</option><option value="cancelado">Cancelados</option>
           </select>
@@ -99,26 +99,26 @@ export function ElogiosClient({ elogios, integrantes, perfil }: { elogios: Elogi
       )}
 
       <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
-        <table className="w-full min-w-[760px] text-sm">
+        <table className="mobile-cards w-full min-w-[760px] text-sm">
           <thead className="bg-slate-50 text-left text-slate-600">
             <tr><th className="px-3 py-2">Título</th><th className="px-3 py-2">Destinatário(s)</th><th className="px-3 py-2">Solicitante</th><th className="px-3 py-2">Solicitação</th><th className="px-3 py-2">Situação</th><th className="px-3 py-2">Publicação</th><th className="px-3 py-2">Ações</th></tr>
           </thead>
           <tbody>
             {lista.map(e => (
               <tr key={e.id} className="border-t border-slate-100">
-                <td className="px-3 py-2">{e.titulo}</td>
-                <td className="px-3 py-2">{e.destinatarioIds.map(d => nomes.get(d) ?? d).join(", ")}</td>
-                <td className="px-3 py-2">{nomes.get(e.solicitanteId) ?? e.solicitanteId}</td>
-                <td className="px-3 py-2">{formatBR(e.dataSolicitacao)}</td>
-                <td className="px-3 py-2">
+                <td data-label="Título" className="px-3 py-2">{e.titulo}</td>
+                <td data-label="Destinatário(s)" className="px-3 py-2">{e.destinatarioIds.map(d => nomes.get(d) ?? d).join(", ")}</td>
+                <td data-label="Solicitante" className="px-3 py-2">{nomes.get(e.solicitanteId) ?? e.solicitanteId}</td>
+                <td data-label="Solicitação" className="px-3 py-2">{formatBR(e.dataSolicitacao)}</td>
+                <td data-label="Situação" className="px-3 py-2">
                   <span className={`rounded px-2 py-0.5 text-xs ${e.situacao === "publicado" ? "bg-green-100 text-green-800" : e.situacao === "solicitado" ? "bg-amber-100 text-amber-800" : e.situacao === "negado" ? "bg-red-100 text-red-800" : "bg-slate-100 text-slate-600"}`}>{e.situacao}</span>
                 </td>
-                <td className="px-3 py-2">
+                <td data-label="Publicação" className="px-3 py-2">
                   {e.situacao === "negado"
                     ? <span className="text-xs text-slate-600">{e.justificativaNegativa}</span>
                     : <>{formatBR(e.dataPublicacao)}{e.referencia ? ` · ${e.referencia}` : ""}</>}
                 </td>
-                <td className="px-3 py-2 space-x-2">
+                <td data-label="Ações" className="px-3 py-2 space-x-2">
                   {e.situacao === "solicitado" && podeGerenciar && <>
                     <button onClick={() => publicar(e.id)} className="text-xs text-green-700 underline">Publicar</button>
                     <button onClick={() => negar(e.id)} className="text-xs text-red-700 underline">Negar</button>

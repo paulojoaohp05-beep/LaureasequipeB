@@ -29,7 +29,7 @@ export function LaureasClient({ laureas, integrantes }: { laureas: Laurea[]; int
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-lg font-semibold text-[#1f3a5f]">Láureas</h1>
         <button onClick={() => setAberto(!aberto)} className="rounded bg-[#1f3a5f] px-4 py-1.5 text-sm text-white">Registrar concessão</button>
       </div>
@@ -65,19 +65,19 @@ export function LaureasClient({ laureas, integrantes }: { laureas: Laurea[]; int
       )}
 
       <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
-        <table className="w-full min-w-[720px] text-sm">
+        <table className="mobile-cards w-full min-w-[720px] text-sm">
           <thead className="bg-slate-50 text-left text-slate-600">
             <tr><th className="px-3 py-2">Integrante</th><th className="px-3 py-2">Grau</th><th className="px-3 py-2">Concessão</th><th className="px-3 py-2">Publicação</th><th className="px-3 py-2">Referência</th><th className="px-3 py-2">Observação</th></tr>
           </thead>
           <tbody>
             {ordenadas.map(l => (
               <tr key={l.id} className="border-t border-slate-100">
-                <td className="px-3 py-2">{nomes.get(l.integranteId) ?? l.integranteId}</td>
-                <td className="px-3 py-2">{l.grau}</td>
-                <td className="px-3 py-2">{formatBR(l.dataConcessao)}</td>
-                <td className="px-3 py-2">{formatBR(l.dataPublicacao)}</td>
-                <td className="px-3 py-2">{l.referencia || "—"}</td>
-                <td className="px-3 py-2">{l.observacao || "—"}</td>
+                <td data-label="Integrante" className="px-3 py-2">{nomes.get(l.integranteId) ?? l.integranteId}</td>
+                <td data-label="Grau" className="px-3 py-2">{l.grau}</td>
+                <td data-label="Concessão" className="px-3 py-2">{formatBR(l.dataConcessao)}</td>
+                <td data-label="Publicação" className="px-3 py-2">{formatBR(l.dataPublicacao)}</td>
+                <td data-label="Referência" className="px-3 py-2">{l.referencia || "—"}</td>
+                <td data-label="Observação" className="px-3 py-2">{l.observacao || "—"}</td>
               </tr>
             ))}
             {ordenadas.length === 0 && <tr><td colSpan={6} className="px-3 py-6 text-center text-slate-500">Nenhuma láurea registrada.</td></tr>}

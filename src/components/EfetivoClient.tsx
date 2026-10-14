@@ -69,7 +69,7 @@ export function EfetivoClient({ itens, perfil }: { itens: Item[]; perfil: Perfil
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-end gap-3 rounded-lg border border-slate-200 bg-white p-4">
+      <div className="flex flex-col items-stretch gap-3 rounded-lg border border-slate-200 bg-white p-4 sm:flex-row sm:flex-wrap sm:items-end">
         <label className="text-sm flex-1 min-w-48">Buscar
           <input value={q} onChange={e => setQ(e.target.value)} placeholder="Nome, RE ou graduação"
             className="mt-1 w-full rounded border border-slate-300 px-3 py-1.5" />
@@ -138,22 +138,22 @@ export function EfetivoClient({ itens, perfil }: { itens: Item[]; perfil: Perfil
 
       <p className="text-sm text-slate-600">{lista.length} integrante(s)</p>
       <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
-        <table className="w-full min-w-[720px] text-sm">
+        <table className="mobile-cards w-full min-w-[720px] text-sm">
           <thead className="bg-slate-50 text-left text-slate-600">
             <tr><th className="px-3 py-2">Graduação</th><th className="px-3 py-2">RE</th><th className="px-3 py-2">Nome</th><th className="px-3 py-2">Elogios</th><th className="px-3 py-2">Láurea</th><th className="px-3 py-2">Ingresso equipe</th><th className="px-3 py-2">Situação</th>{podeGerenciar && <th className="px-3 py-2">Ações</th>}</tr>
           </thead>
           <tbody>
             {lista.map(i => (
               <tr key={i.id} onClick={() => router.push(`/efetivo/${i.id}`)} className="cursor-pointer border-t border-slate-100 hover:bg-slate-50">
-                <td className="px-3 py-2">{i.graduacao}</td>
-                <td className="px-3 py-2 font-mono">{i.re}</td>
-                <td className="px-3 py-2">{i.nome}{i.nomeGuerra ? ` (${i.nomeGuerra})` : ""}</td>
-                <td className="px-3 py-2">{i.totalElogiosPublicados === null ? <span className="text-xs text-slate-400">sem registro</span> : i.totalElogiosPublicados}</td>
-                <td className="px-3 py-2">{i.laureaVigente ? <>{i.laureaVigente.grau} <span className="text-xs text-slate-500">({formatBR(i.laureaVigente.data)})</span></> : <span className="text-xs text-slate-400">sem registro</span>}</td>
-                <td className="px-3 py-2">{formatBR(i.complemento?.ingressoEquipe)}{!i.complemento?.ingressoEquipe && <span className="text-xs text-amber-700"> pendente</span>}</td>
-                <td className="px-3 py-2">{i.situacao ?? "ativo"}</td>
+                <td data-label="Graduação" className="px-3 py-2">{i.graduacao}</td>
+                <td data-label="RE" className="px-3 py-2 font-mono">{i.re}</td>
+                <td data-label="Nome" className="px-3 py-2">{i.nome}{i.nomeGuerra ? ` (${i.nomeGuerra})` : ""}</td>
+                <td data-label="Elogios" className="px-3 py-2">{i.totalElogiosPublicados === null ? <span className="text-xs text-slate-400">sem registro</span> : i.totalElogiosPublicados}</td>
+                <td data-label="Láurea" className="px-3 py-2">{i.laureaVigente ? <>{i.laureaVigente.grau} <span className="text-xs text-slate-500">({formatBR(i.laureaVigente.data)})</span></> : <span className="text-xs text-slate-400">sem registro</span>}</td>
+                <td data-label="Ingresso equipe" className="px-3 py-2">{formatBR(i.complemento?.ingressoEquipe)}{!i.complemento?.ingressoEquipe && <span className="text-xs text-amber-700"> pendente</span>}</td>
+                <td data-label="Situação" className="px-3 py-2">{i.situacao ?? "ativo"}</td>
                 {podeGerenciar && (
-                  <td className="px-3 py-2 space-x-2" onClick={e => e.stopPropagation()}>
+                  <td data-label="Ações" className="px-3 py-2 space-x-2" onClick={e => e.stopPropagation()}>
                     {i.situacao !== "excluido" && <>
                       <button onClick={() => setEditando(i)} className="text-xs text-[#1f3a5f] underline">Editar</button>
                       <button onClick={() => excluir(i)} className="text-xs text-red-700 underline">Excluir</button>
