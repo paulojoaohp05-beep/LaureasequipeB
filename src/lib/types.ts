@@ -1,6 +1,6 @@
 // Tipos do módulo de controle de láureas e elogios — Equipe B.
 
-export type Perfil = "admin" | "editor" | "visualizador";
+export type Perfil = "admin" | "gestor" | "editor" | "visualizador";
 
 export type SituacaoIntegrante = "ativo" | "afastado" | "transferido" | "reserva";
 
@@ -26,6 +26,9 @@ export interface ComplementoEfetivo {
   nomeGuerra?: string;
   funcao?: string;
   situacaoEquipe?: string;
+  excluidoEm?: string;
+  excluidoPorUid?: string;
+  motivoExclusao?: string;
   camposPendentes?: string[];
   schemaVersion: number;
 }

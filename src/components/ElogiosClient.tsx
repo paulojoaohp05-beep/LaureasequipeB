@@ -12,6 +12,7 @@ export function ElogiosClient({ elogios, integrantes, perfil }: { elogios: Elogi
   const [erro, setErro] = useState("");
   const [pending, start] = useTransition();
   const nomes = useMemo(() => new Map(integrantes.map(i => [i.id, i.nomeGuerra || i.nome])), [integrantes]);
+  const podeGerenciar = perfil === "admin" || perfil === "gestor";
 
   const lista = elogios.filter(e => !filtro || e.situacao === filtro);
 
@@ -76,7 +77,7 @@ export function ElogiosClient({ elogios, integrantes, perfil }: { elogios: Elogi
             <label className="text-sm">Data da solicitação
               <input name="dataSolicitacao" type="date" className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5" />
             </label>
-            {perfil === "admin" && (
+            {podeGerenciar && (
               <label className="flex items-center gap-2 text-sm">
                 <input type="checkbox" name="jaPublicado" checked={jaPublicado} onChange={e => setJaPublicado(e.target.checked)} />
                 Já publicado
@@ -118,7 +119,7 @@ export function ElogiosClient({ elogios, integrantes, perfil }: { elogios: Elogi
                     : <>{formatBR(e.dataPublicacao)}{e.referencia ? ` · ${e.referencia}` : ""}</>}
                 </td>
                 <td className="px-3 py-2 space-x-2">
-                  {e.situacao === "solicitado" && perfil === "admin" && <>
+                  {e.situacao === "solicitado" && podeGerenciar && <>
                     <button onClick={() => publicar(e.id)} className="text-xs text-green-700 underline">Publicar</button>
                     <button onClick={() => negar(e.id)} className="text-xs text-red-700 underline">Negar</button>
                   </>}

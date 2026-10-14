@@ -14,9 +14,15 @@ export function DashboardClient({ dados, filtro }: { dados: Dados; filtro: Filtr
   }
   const maxEvol = Math.max(1, ...dados.evolucao.map(e => e.elogios + e.laureas));
 
+  const criterioLabel = { solicitacao: "Data da solicitação", publicacao: "Data de publicação", concessao: "Data da concessão" }[filtro.criterio];
+
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-end gap-3 rounded-lg border border-slate-200 bg-white p-4">
+      <div className="print-only">
+        <h1 className="text-xl font-semibold">Controle de Láureas — Equipe B · Dashboard</h1>
+        <p className="text-sm">Período: {formatBR(dados.de)} a {formatBR(dados.ate)} · Critério: {criterioLabel} · Gerado em {new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}</p>
+      </div>
+      <div className="no-print flex flex-wrap items-end gap-3 rounded-lg border border-slate-200 bg-white p-4">
         <label className="text-sm">Período
           <select value={filtro.tipo} onChange={e => setParam("periodo", e.target.value)} className="mt-1 block rounded border border-slate-300 px-2 py-1.5">
             <option value="mes-atual">Mês atual</option>
@@ -39,6 +45,7 @@ export function DashboardClient({ dados, filtro }: { dados: Dados; filtro: Filtr
           </>
         )}
         <span className="text-xs text-slate-500">Período aplicado: {formatBR(dados.de)} a {formatBR(dados.ate)}</span>
+        <button onClick={() => window.print()} className="rounded border border-[#1f3a5f] px-4 py-1.5 text-sm text-[#1f3a5f]">Exportar PDF</button>
       </div>
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-6">
@@ -59,7 +66,7 @@ export function DashboardClient({ dados, filtro }: { dados: Dados; filtro: Filtr
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
-        <section className="rounded-lg border border-slate-200 bg-white p-4">
+        <section className="break-inside-avoid rounded-lg border border-slate-200 bg-white p-4">
           <h2 className="mb-3 font-semibold text-[#1f3a5f]">Elogios × Sargento</h2>
           {dados.participacao.length === 0 ? <p className="text-sm text-slate-500">Nenhum registro no período.</p> : (
             <table className="w-full text-sm">
@@ -75,7 +82,7 @@ export function DashboardClient({ dados, filtro }: { dados: Dados; filtro: Filtr
           )}
         </section>
 
-        <section className="rounded-lg border border-slate-200 bg-white p-4">
+        <section className="break-inside-avoid rounded-lg border border-slate-200 bg-white p-4">
           <h2 className="mb-3 font-semibold text-[#1f3a5f]">Evolução mensal</h2>
           {dados.evolucao.length === 0 ? <p className="text-sm text-slate-500">Nenhum registro no período.</p> : (
             <div className="flex items-end gap-2">
@@ -91,7 +98,7 @@ export function DashboardClient({ dados, filtro }: { dados: Dados; filtro: Filtr
           <p className="mt-2 text-xs text-slate-500"><span className="text-[#1f3a5f]">■</span> elogios &nbsp;<span className="text-[#c9a227]">■</span> láureas</p>
         </section>
 
-        <section className="rounded-lg border border-slate-200 bg-white p-4">
+        <section className="break-inside-avoid rounded-lg border border-slate-200 bg-white p-4">
           <h2 className="mb-3 font-semibold text-[#1f3a5f]">Distribuição por grau de láurea</h2>
           <ul className="text-sm">
             {Object.entries(dados.distribuicao).map(([g, n]) => <li key={g}>{g} grau: {n}</li>)}
@@ -99,7 +106,7 @@ export function DashboardClient({ dados, filtro }: { dados: Dados; filtro: Filtr
           </ul>
         </section>
 
-        <section className="rounded-lg border border-slate-200 bg-white p-4">
+        <section className="break-inside-avoid rounded-lg border border-slate-200 bg-white p-4">
           <h2 className="mb-3 font-semibold text-[#1f3a5f]">Últimas movimentações</h2>
           {dados.ultimos.length === 0 ? <p className="text-sm text-slate-500">Nenhuma movimentação.</p> : (
             <ul className="text-sm">

@@ -2,7 +2,7 @@
 // Todas as operações verificam sessão, autorização do módulo, equipe e perfil no servidor.
 import { adminDb } from "@/lib/firebase/admin";
 import { FieldValue } from "firebase-admin/firestore";
-import { exigirSessao, exigirPerfil } from "./session";
+import { exigirSessao, exigirPerfil, sessaoAtual } from "./session";
 import * as db from "./db";
 import { COL } from "./db";
 import { assertPodeEditar, assertPodePublicarOuCancelar, assertPublicacaoCompleta, assertSolicitante, assertTransicao, ErroValidacao } from "@/lib/elogios";
@@ -23,14 +23,15 @@ export async function obterDashboard(filtro: FiltroPeriodo) {
   const [integrantes, elogios, laureas] = await Promise.all([
     db.listarIntegrantes(), db.listarElogios(EQUIPE), db.listarLaureas(EQUIPE),
   ]);
-  const ativos = integrantes.filter(i => !i.situacao || i.situacao === "ativo");
+  const efetivo = integrantes.filter(i => i.complemento?.situacaoEquipe !== "excluido");
+  const ativos = efetivo.filter(i => !i.situacao || i.situacao === "ativo");
 
   const dataElogio = (e: Elogio) => filtro.criterio === "publicacao" ? e.dataPublicacao : e.dataSolicitacao;
   const elogiosPeriodo = elogios.filter(e => dentroPeriodo(dataElogio(e), de, ate) === true);
   const laureasPeriodo = laureas.filter(l => dentroPeriodo(l.dataConcessao, de, ate) === true);
 
   const porSargento = new Map<string, { solicitacoes: number; publicacoes: number; pendencias: number; negados: number }>();
-  const sgtNome = new Map(integrantes.map(i => [i.id, i.nomeGuerra || i.nome]));
+  const sgtNome = new Map(efetivo.map(i => [i.id, i.nomeGuerra || i.nome]));
   // Sargentos solicitantes sem registros: incluir todos com graduação de sgt/subten? Mantemos os que têm registros + flag "sem dados".
   for (const e of elogiosPeriodo) {
     const p = porSargento.get(e.solicitanteId) ?? { solicitacoes: 0, publicacoes: 0, pendencias: 0, negados: 0 };
@@ -72,11 +73,12 @@ export async function obterDashboard(filtro: FiltroPeriodo) {
   };
 }
 
-export async function obterEfetivo() {
+export async function obterEfetivo(opts?: { incluirExcluidos?: boolean }) {
   const s = await exigirSessao(); assertEquipe(s);
-  const [integrantes, elogios, laureas] = await Promise.all([
+  const [todos, elogios, laureas] = await Promise.all([
     db.listarIntegrantes(), db.listarElogios(EQUIPE), db.listarLaureas(EQUIPE),
   ]);
+  const integrantes = opts?.incluirExcluidos ? todos : todos.filter(i => i.complemento?.situacaoEquipe !== "excluido");
   // Resumo de reconhecimentos por integrante: nº de elogios publicados + grau de láurea vigente.
   const elogiosPor = new Map<string, number>();
   for (const e of elogios) if (e.situacao === "publicado") for (const d of e.destinatarioIds) elogiosPor.set(d, (elogiosPor.get(d) ?? 0) + 1);
@@ -104,6 +106,11 @@ export async function obterFicha(integranteId: string) {
   const todos = await db.listarElogios(EQUIPE);
   const elogios = todos.filter(e => e.destinatarioIds.includes(integranteId));
   return { integrante: i, complemento, laureas, elogios };
+}
+
+export async function obterPerfilSessao() {
+  const s = await sessaoAtual();
+  return s ? { perfil: s.usuario.perfil, email: s.email } : null;
 }
 
 export async function obterElogios() { const s = await exigirSessao(); assertEquipe(s); return db.listarElogios(EQUIPE); }
@@ -206,7 +213,7 @@ export async function editarElogio(id: string, campos: { titulo?: string; descri
 
 // ---------- Mutações: láureas ----------
 export async function registrarLaurea(input: { integranteId: string; grau: string; dataConcessao: string; dataPublicacao?: string; referencia?: string; solicitanteId?: string; observacao?: string }) {
-  const s = await exigirPerfil("admin"); assertEquipe(s);
+  const s = await exigirPerfil("admin", "gestor"); assertEquipe(s);
   if (!isDataCivil(input.dataConcessao)) throw new ErroValidacao("Data da concessão inválida ou ausente");
   if (!["1º", "2º", "3º", "4º", "5º"].includes(input.grau)) throw new ErroValidacao("Grau inválido");
   const ref = adminDb.collection(COL.laureas).doc();
@@ -225,7 +232,7 @@ export async function registrarLaurea(input: { integranteId: string; grau: strin
 // ---------- Administração ----------
 export async function definirUsuario(uid: string, dados: { integranteId?: string; perfil: Perfil; ativo: boolean }) {
   const s = await exigirPerfil("admin"); assertEquipe(s);
-  if (!["admin", "editor", "visualizador"].includes(dados.perfil)) throw new ErroValidacao("Perfil inválido");
+  if (!["admin", "gestor", "editor", "visualizador"].includes(dados.perfil)) throw new ErroValidacao("Perfil inválido");
   const atual = await db.buscarUsuario(uid);
   const desativaAdmin = dados.perfil !== "admin" || dados.ativo === false;
   if (atual?.perfil === "admin" && atual.ativo && desativaAdmin) {
@@ -298,9 +305,99 @@ export async function importarPlanilha(base64: string, nomeArquivo: string, modo
   return { modo, ...rel, aplicados, criados };
 }
 
+// ---------- Efetivo (admin/gestor) — `membros` é o cadastro mestre do legado ----------
+// Regras de segurança: nunca apagar docs de `membros` (a Gestão de Caixa depende deles);
+// exclusão é lógica, via complemento. Campos pago_semestre_* pertencem ao caixa: criados
+// com 0 e jamais tocados depois.
+const GRADUACOES = ["CAP PM", "1º TEN PM", "2º TEN PM", "SUBTEN PM", "1º SGT PM", "2º SGT PM", "3º SGT PM", "CB PM", "SD PM"];
+
+export async function criarMembro(input: { re: string; nome: string; graduacao: string; nomeGuerra?: string; ingressoEquipe?: string; ingressoPM?: string }) {
+  const s = await exigirPerfil("admin", "gestor"); assertEquipe(s);
+  const re = input.re?.trim(), nome = input.nome?.trim();
+  if (!re) throw new ErroValidacao("RE obrigatório");
+  if (!nome) throw new ErroValidacao("Nome obrigatório");
+  if (!GRADUACOES.includes(input.graduacao)) throw new ErroValidacao("Graduação inválida");
+  if (input.ingressoEquipe && !isDataCivil(input.ingressoEquipe)) throw new ErroValidacao("Data de ingresso na equipe inválida");
+  if (input.ingressoPM && !isDataCivil(input.ingressoPM)) throw new ErroValidacao("Data de ingresso na PM inválida");
+
+  const ref = adminDb.collection(COL.membros).doc();
+  const compRef = adminDb.collection(COL.complementos).doc(ref.id);
+  await adminDb.runTransaction(async t => {
+    const dup = await t.get(adminDb.collection(COL.membros).where("re", "==", re).limit(1));
+    if (!dup.empty) throw new ErroValidacao("RE já cadastrado");
+    t.create(ref, { re, nome, posto_grad: input.graduacao, pago_semestre_1: 0, pago_semestre_2: 0 });
+    const pendentes: string[] = [];
+    if (!input.ingressoEquipe) pendentes.push("ingressoEquipe");
+    if (!input.ingressoPM) pendentes.push("ingressoPM");
+    const comp: Record<string, unknown> = { integranteId: ref.id, situacaoEquipe: "ativo", camposPendentes: pendentes, schemaVersion: 1 };
+    if (input.nomeGuerra?.trim()) comp.nomeGuerra = input.nomeGuerra.trim();
+    if (input.ingressoEquipe) comp.ingressoEquipe = input.ingressoEquipe;
+    if (input.ingressoPM) comp.ingressoPM = input.ingressoPM;
+    t.create(compRef, comp);
+    t.create(adminDb.collection(COL.auditoria).doc(), { acao: "membro.criar", entidade: "membro", entidadeId: ref.id, autorUid: s.uid, autorEmail: s.email, em: FieldValue.serverTimestamp() });
+  });
+  return { id: ref.id };
+}
+
+export async function editarMembro(id: string, dados: { re?: string; nome?: string; graduacao?: string; nomeGuerra?: string; ingressoEquipe?: string; ingressoPM?: string; situacaoEquipe?: string }) {
+  const s = await exigirPerfil("admin", "gestor"); assertEquipe(s);
+  if (dados.ingressoEquipe && !isDataCivil(dados.ingressoEquipe)) throw new ErroValidacao("Data de ingresso na equipe inválida");
+  if (dados.ingressoPM && !isDataCivil(dados.ingressoPM)) throw new ErroValidacao("Data de ingresso na PM inválida");
+  if (dados.graduacao !== undefined && !GRADUACOES.includes(dados.graduacao)) throw new ErroValidacao("Graduação inválida");
+
+  const ref = adminDb.collection(COL.membros).doc(id);
+  const compRef = adminDb.collection(COL.complementos).doc(id);
+  await adminDb.runTransaction(async t => {
+    const [d, c] = await Promise.all([t.get(ref), t.get(compRef)]);
+    if (!d.exists) throw new ErroValidacao("Integrante não encontrado");
+    const antes = d.data()!;
+    const compAntes = c.exists ? c.data()! : {};
+
+    const campos: Record<string, { antes?: unknown; depois?: unknown }> = {};
+    const updMestre: Record<string, unknown> = {};
+    if (dados.re?.trim() && dados.re.trim() !== antes.re) {
+      const dup = await t.get(adminDb.collection(COL.membros).where("re", "==", dados.re.trim()).limit(1));
+      if (!dup.empty && dup.docs[0].id !== id) throw new ErroValidacao("RE já cadastrado");
+      updMestre.re = dados.re.trim(); campos.re = { antes: antes.re, depois: updMestre.re };
+    }
+    if (dados.nome?.trim() && dados.nome.trim() !== antes.nome) { updMestre.nome = dados.nome.trim(); campos.nome = { antes: antes.nome, depois: updMestre.nome }; }
+    if (dados.graduacao && dados.graduacao !== antes.posto_grad) { updMestre.posto_grad = dados.graduacao; campos.posto_grad = { antes: antes.posto_grad, depois: dados.graduacao }; }
+    if (Object.keys(updMestre).length) t.update(ref, updMestre); // nunca toca pago_* nem remove campos
+
+    const updComp: Record<string, unknown> = {};
+    for (const k of ["nomeGuerra", "ingressoEquipe", "ingressoPM", "situacaoEquipe"] as const) {
+      const v = dados[k];
+      if (v !== undefined && v !== "" && v !== compAntes[k]) { updComp[k] = v; campos[k] = { antes: compAntes[k], depois: v }; }
+    }
+    const final = { ...compAntes, ...updComp };
+    const pendentes: string[] = [];
+    if (!final.ingressoEquipe) pendentes.push("ingressoEquipe");
+    if (!final.ingressoPM) pendentes.push("ingressoPM");
+    if (!c.exists) { updComp.integranteId = id; updComp.schemaVersion = 1; }
+    t.set(compRef, { ...updComp, camposPendentes: pendentes }, { merge: true });
+    if (Object.keys(campos).length) {
+      t.create(adminDb.collection(COL.auditoria).doc(), { acao: "membro.editar", entidade: "membro", entidadeId: id, autorUid: s.uid, autorEmail: s.email, em: FieldValue.serverTimestamp(), campos });
+    }
+  });
+}
+
+export async function excluirMembro(id: string, motivo: string) {
+  const s = await exigirPerfil("admin", "gestor"); assertEquipe(s);
+  if (!motivo?.trim()) throw new ErroValidacao("Motivo da exclusão obrigatório");
+  const ref = adminDb.collection(COL.membros).doc(id);
+  const compRef = adminDb.collection(COL.complementos).doc(id);
+  await adminDb.runTransaction(async t => {
+    const d = await t.get(ref);
+    if (!d.exists) throw new ErroValidacao("Integrante não encontrado");
+    // Exclusão lógica: `membros` (legado) jamais é tocado.
+    t.set(compRef, { integranteId: id, situacaoEquipe: "excluido", excluidoEm: FieldValue.serverTimestamp(), excluidoPorUid: s.uid, motivoExclusao: motivo.trim(), schemaVersion: 1 }, { merge: true });
+    t.create(adminDb.collection(COL.auditoria).doc(), { acao: "membro.excluir-logico", entidade: "membro", entidadeId: id, autorUid: s.uid, autorEmail: s.email, em: FieldValue.serverTimestamp(), campos: { situacaoEquipe: { depois: "excluido" }, motivoExclusao: { depois: motivo.trim() } } });
+  });
+}
+
 // ---------- Complemento cadastral (admin) ----------
 export async function salvarComplemento(integranteId: string, dados: { ingressoEquipe?: string; ingressoPM?: string; nomeGuerra?: string; funcao?: string; situacaoEquipe?: string }) {
-  const s = await exigirPerfil("admin"); assertEquipe(s);
+  const s = await exigirPerfil("admin", "gestor"); assertEquipe(s);
   if (dados.ingressoEquipe && !isDataCivil(dados.ingressoEquipe)) throw new ErroValidacao("Data de ingresso inválida");
   if (dados.ingressoPM && !isDataCivil(dados.ingressoPM)) throw new ErroValidacao("Data de ingresso na PM inválida");
   const pendentes: string[] = [];

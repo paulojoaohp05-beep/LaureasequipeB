@@ -59,14 +59,16 @@ Administração → Importação de efetivo. Simulação sem escrita, relatório
 
 ## Matriz de acesso
 
-| Ação | Admin | Editor | Visualizador |
-| --- | --- | --- | --- |
-| Consultar/exportar | ✓ | ✓ | ✓ |
-| Criar solicitação | ✓ | ✓ (solicitante = seu vínculo) | ✗ |
-| Editar não publicada | todas | só as próprias | ✗ |
-| Publicar/cancelar | ✓ | ✗ | ✗ |
-| Láureas | ✓ | ✗ | ✗ |
-| Gerenciar acessos | ✓ | ✗ | ✗ |
+| Ação | Admin | Gestor | Editor | Visualizador |
+| --- | --- | --- | --- | --- |
+| Consultar/exportar | ✓ | ✓ | ✓ | ✓ |
+| Criar solicitação | ✓ | ✓ | ✓ (solicitante = seu vínculo) | ✗ |
+| Editar não publicada | todas | todas | só as próprias | ✗ |
+| Publicar/negar/cancelar | ✓ | ✓ | ✗ | ✗ |
+| Registrar já publicado | ✓ | ✓ | ✗ | ✗ |
+| Efetivo (criar/editar/excluir lógico) | ✓ | ✓ | ✗ | ✗ |
+| Láureas | ✓ | ✓ | ✗ | ✗ |
+| Gerenciar acessos / importação | ✓ | ✗ | ✗ | ✗ |
 
 ## Pendências conhecidas
 

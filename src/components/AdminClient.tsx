@@ -30,7 +30,7 @@ function Usuarios({ usuarios, integrantes }: { usuarios: UsuarioModulo[]; integr
     start(async () => {
       try {
         await definirUsuario(String(fd.get("uid")), {
-          perfil: fd.get("perfil") as "admin" | "editor" | "visualizador",
+          perfil: fd.get("perfil") as "admin" | "gestor" | "editor" | "visualizador",
           ativo: fd.get("ativo") === "on",
           integranteId: String(fd.get("integrante") ?? "") || undefined,
         });
@@ -70,7 +70,7 @@ function Usuarios({ usuarios, integrantes }: { usuarios: UsuarioModulo[]; integr
         </label>
         <label className="text-sm">Perfil
           <select name="perfil" className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5">
-            <option value="visualizador">Visualização</option><option value="editor">Sargento/editor</option><option value="admin">Administrador</option>
+            <option value="visualizador">Visualização</option><option value="editor">Sargento/editor</option><option value="gestor">Gestor (tudo exceto Administração)</option><option value="admin">Administrador</option>
           </select>
         </label>
         <div className="flex items-end gap-2 pb-2">
@@ -88,7 +88,7 @@ function Detalhes({ u, integrantes, onSalvar, pending }: { u: UsuarioModulo; int
       <input type="hidden" name="uid" value={u.uid} />
       <input type="hidden" name="integrante" value={u.integranteId ?? ""} />
       <select name="perfil" defaultValue={u.perfil} className="rounded border border-slate-300 px-1 py-0.5 text-xs">
-        <option value="visualizador">visualizador</option><option value="editor">editor</option><option value="admin">admin</option>
+        <option value="visualizador">visualizador</option><option value="editor">editor</option><option value="gestor">gestor</option><option value="admin">admin</option>
       </select>
       <label className="text-xs"><input type="checkbox" name="ativo" defaultChecked={u.ativo} /> ativo</label>
       <button disabled={pending} className="text-xs text-[#1f3a5f] underline">atualizar</button>

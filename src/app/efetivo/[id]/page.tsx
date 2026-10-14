@@ -14,17 +14,21 @@ export default async function FichaPage({ params }: { params: Promise<{ id: stri
 
   return (
     <div className="flex flex-col gap-6">
+      {complemento?.situacaoEquipe === "excluido" && (
+        <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+          Integrante excluído do efetivo{complemento.excluidoEm ? ` em ${formatBR(complemento.excluidoEm.slice(0, 10))}` : ""}{complemento.motivoExclusao ? ` — ${complemento.motivoExclusao}` : ""}
+        </p>
+      )}
       <section className="rounded-lg border border-slate-200 bg-white p-5">
         <h1 className="text-xl font-semibold text-[#1f3a5f]">{i.nome}</h1>
         <dl className="mt-3 grid grid-cols-2 gap-x-6 gap-y-2 text-sm md:grid-cols-4">
           <div><dt className="text-slate-500">Graduação</dt><dd>{i.graduacao}</dd></div>
           <div><dt className="text-slate-500">RE</dt><dd className="font-mono">{i.re}</dd></div>
           <div><dt className="text-slate-500">Nome de guerra</dt><dd>{i.nomeGuerra || "—"}</dd></div>
-          <div><dt className="text-slate-500">Função</dt><dd>{i.funcao || "—"}</dd></div>
           <div><dt className="text-slate-500">Ingresso na PM</dt><dd>{formatBR(i.ingressoPM)}{!i.ingressoPM && <span className="text-xs text-amber-700"> pendente</span>}</dd></div>
           <div><dt className="text-slate-500">Ingresso na equipe</dt><dd>{formatBR(ingresso)}{!ingresso && <span className="text-xs text-amber-700"> pendente</span>}</dd></div>
           <div><dt className="text-slate-500">Tempo na equipe</dt><dd>{ingresso ? `${anosEntre(ingresso, hojeSP())} ano(s)` : "—"}</dd></div>
-          <div><dt className="text-slate-500">Situação</dt><dd>{i.situacao ?? "ativo"}</dd></div>
+          <div><dt className="text-slate-500">Situação</dt><dd>{complemento?.situacaoEquipe ?? i.situacao ?? "ativo"}</dd></div>
         </dl>
       </section>
 

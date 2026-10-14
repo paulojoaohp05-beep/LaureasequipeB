@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { podeTransitar, assertPodeEditar, assertPublicacaoCompleta, assertSolicitante, ErroPermissao, ErroValidacao } from "./elogios";
+import { podeTransitar, assertPodeEditar, assertPodePublicarOuCancelar, assertPublicacaoCompleta, assertSolicitante, ErroPermissao, ErroValidacao } from "./elogios";
 import type { Elogio } from "./types";
 
 const base: Elogio = {
@@ -25,6 +25,17 @@ describe("permissões de edição", () => {
     expect(() => assertPodeEditar({ ...base, situacao: "publicado" }, "editor", "u1")).toThrow(ErroPermissao);
     expect(() => assertPodeEditar(base, "visualizador", "u1")).toThrow(ErroPermissao);
     expect(() => assertPodeEditar(base, "admin", "qualquer")).not.toThrow();
+  });
+  it("gestor edita registro de outro uid não publicado; publicado/negado são fechados", () => {
+    expect(() => assertPodeEditar(base, "gestor", "outro")).not.toThrow();
+    expect(() => assertPodeEditar({ ...base, situacao: "publicado" }, "gestor", "u1")).toThrow(ErroPermissao);
+    expect(() => assertPodeEditar({ ...base, situacao: "negado" }, "gestor", "u1")).toThrow(ErroPermissao);
+  });
+  it("gestor publica/nega; editor e visualizador não", () => {
+    expect(() => assertPodePublicarOuCancelar("gestor")).not.toThrow();
+    expect(() => assertPodePublicarOuCancelar("admin")).not.toThrow();
+    expect(() => assertPodePublicarOuCancelar("editor")).toThrow(ErroPermissao);
+    expect(() => assertPodePublicarOuCancelar("visualizador")).toThrow(ErroPermissao);
   });
 });
 

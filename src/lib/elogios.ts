@@ -20,15 +20,18 @@ export function assertTransicao(e: Elogio, para: SituacaoElogio) {
   if (!podeTransitar(e.situacao, para)) throw new ErroValidacao(`Transição inválida: ${e.situacao} → ${para}`);
 }
 
-/** Somente admin publica/cancela. Editor edita apenas as próprias solicitações não publicadas. */
+/** Admin e gestor editam qualquer registro não publicado. Editor edita apenas as próprias solicitações não publicadas. */
 export function assertPodeEditar(e: Elogio, perfil: Perfil, uid: string) {
-  if (perfil === "admin") return;
+  if (perfil === "admin" || perfil === "gestor") {
+    if (e.situacao === "publicado" || e.situacao === "negado") throw new ErroPermissao();
+    return;
+  }
   if (perfil === "editor" && e.lancadoPorUid === uid && (e.situacao === "rascunho" || e.situacao === "solicitado")) return;
   throw new ErroPermissao();
 }
 
 export function assertPodePublicarOuCancelar(perfil: Perfil) {
-  if (perfil !== "admin") throw new ErroPermissao("Somente administrador publica ou cancela registros");
+  if (perfil !== "admin" && perfil !== "gestor") throw new ErroPermissao("Somente administrador ou gestor publica, nega ou cancela registros");
 }
 
 export function assertPublicacaoCompleta(campos: { dataPublicacao?: string; referencia?: string }) {
@@ -36,9 +39,9 @@ export function assertPublicacaoCompleta(campos: { dataPublicacao?: string; refe
   if (!campos.referencia?.trim()) throw new ErroValidacao("Referência do boletim/documento é obrigatória para publicar");
 }
 
-/** Solicitante pode ser o próprio usuário vinculado (editor) ou escolhido por admin. */
+/** Solicitante pode ser o próprio usuário vinculado (editor) ou escolhido por admin/gestor. */
 export function assertSolicitante(perfil: Perfil, solicitanteId: string, integranteVinculadoId?: string) {
-  if (perfil === "admin") return;
+  if (perfil === "admin" || perfil === "gestor") return;
   if (perfil === "editor") {
     if (!integranteVinculadoId) throw new ErroPermissao("Usuário sem vínculo com integrante não pode lançar em nome próprio");
     if (solicitanteId !== integranteVinculadoId) throw new ErroPermissao("Editor só pode lançar solicitado por si mesmo");
