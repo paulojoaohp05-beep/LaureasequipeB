@@ -5,7 +5,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { exigirSessao, exigirPerfil } from "./session";
 import * as db from "./db";
 import { COL } from "./db";
-import { assertPodeEditar, assertPodeCorrigir, assertPodePublicarOuCancelar, assertPublicacaoCompleta, assertSolicitante, assertTransicao, ErroValidacao } from "@/lib/elogios";
+import { assertPodeEditar, assertPodeCorrigir, assertPodeExcluirElogio, assertPodePublicarOuCancelar, assertPublicacaoCompleta, assertSolicitante, assertTransicao, ErroValidacao } from "@/lib/elogios";
 import { isDataCivil, periodoBounds, dentroPeriodo, hojeSP } from "@/lib/dates";
 import { lerPlanilha, reconciliar, hashPlanilhaRe } from "@/lib/planilha";
 import type { Elogio, Laurea, Perfil, FiltroPeriodo } from "@/lib/types";
@@ -217,6 +217,20 @@ export async function editarElogio(id: string, campos: { titulo?: string; descri
   });
 }
 
+/** Exclusão física do elogio (coleção do módulo), com snapshot completo em auditoria. */
+export async function excluirElogio(id: string) {
+  const s = await exigirSessao(); assertEquipe(s);
+  const ref = adminDb.collection(COL.elogios).doc(id);
+  await adminDb.runTransaction(async t => {
+    const d = await t.get(ref);
+    if (!d.exists) throw new ErroValidacao("Registro não encontrado");
+    const e = { id: d.id, ...d.data() } as Elogio;
+    assertPodeExcluirElogio(e, s.usuario.perfil, s.uid);
+    t.delete(ref);
+    t.create(adminDb.collection(COL.auditoria).doc(), { acao: "elogio.excluir", entidade: "elogio", entidadeId: id, autorUid: s.uid, autorEmail: s.email, em: FieldValue.serverTimestamp(), dadosAnteriores: d.data() });
+  });
+}
+
 /** Correção de publicado/negado sem mudar a situação — só admin/gestor. */
 export async function corrigirElogio(id: string, campos: { titulo?: string; descricao?: string; dataSolicitacao?: string; dataPublicacao?: string; referencia?: string; justificativaNegativa?: string }) {
   const s = await exigirSessao(); assertEquipe(s);
@@ -285,6 +299,18 @@ export async function editarLaurea(id: string, campos: { integranteId?: string; 
     if (!Object.keys(upd).length) return;
     t.update(ref, upd);
     t.create(adminDb.collection(COL.auditoria).doc(), { acao: "laurea.editar", entidade: "laurea", entidadeId: id, autorUid: s.uid, autorEmail: s.email, em: FieldValue.serverTimestamp(), campos: camposAud });
+  });
+}
+
+/** Exclusão física da láurea (coleção do módulo), com snapshot completo em auditoria. */
+export async function excluirLaurea(id: string) {
+  const s = await exigirPerfil("admin", "gestor"); assertEquipe(s);
+  const ref = adminDb.collection(COL.laureas).doc(id);
+  await adminDb.runTransaction(async t => {
+    const d = await t.get(ref);
+    if (!d.exists) throw new ErroValidacao("Registro não encontrado");
+    t.delete(ref);
+    t.create(adminDb.collection(COL.auditoria).doc(), { acao: "laurea.excluir", entidade: "laurea", entidadeId: id, autorUid: s.uid, autorEmail: s.email, em: FieldValue.serverTimestamp(), dadosAnteriores: d.data() });
   });
 }
 
@@ -440,17 +466,18 @@ export async function editarMembro(id: string, dados: { re?: string; nome?: stri
   });
 }
 
-export async function excluirMembro(id: string, motivo: string) {
+export async function excluirMembro(id: string, motivo?: string) {
   const s = await exigirPerfil("admin", "gestor"); assertEquipe(s);
-  if (!motivo?.trim()) throw new ErroValidacao("Motivo da exclusão obrigatório");
   const ref = adminDb.collection(COL.membros).doc(id);
   const compRef = adminDb.collection(COL.complementos).doc(id);
   await adminDb.runTransaction(async t => {
     const d = await t.get(ref);
     if (!d.exists) throw new ErroValidacao("Integrante não encontrado");
     // Exclusão lógica: `membros` (legado) jamais é tocado.
-    t.set(compRef, { integranteId: id, situacaoEquipe: "excluido", excluidoEm: FieldValue.serverTimestamp(), excluidoPorUid: s.uid, motivoExclusao: motivo.trim(), schemaVersion: 1 }, { merge: true });
-    t.create(adminDb.collection(COL.auditoria).doc(), { acao: "membro.excluir-logico", entidade: "membro", entidadeId: id, autorUid: s.uid, autorEmail: s.email, em: FieldValue.serverTimestamp(), campos: { situacaoEquipe: { depois: "excluido" }, motivoExclusao: { depois: motivo.trim() } } });
+    const exc: Record<string, unknown> = { integranteId: id, situacaoEquipe: "excluido", excluidoEm: FieldValue.serverTimestamp(), excluidoPorUid: s.uid, schemaVersion: 1 };
+    if (motivo?.trim()) exc.motivoExclusao = motivo.trim();
+    t.set(compRef, exc, { merge: true });
+    t.create(adminDb.collection(COL.auditoria).doc(), { acao: "membro.excluir-logico", entidade: "membro", entidadeId: id, autorUid: s.uid, autorEmail: s.email, em: FieldValue.serverTimestamp(), campos: { situacaoEquipe: { depois: "excluido" }, ...(motivo?.trim() ? { motivoExclusao: { depois: motivo.trim() } } : {}) } });
   });
 }
 

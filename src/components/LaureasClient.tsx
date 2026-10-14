@@ -1,13 +1,15 @@
 "use client";
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { registrarLaurea, editarLaurea } from "@/server/actions";
+import { registrarLaurea, editarLaurea, excluirLaurea } from "@/server/actions";
 import { IntegrantePicker } from "./IntegrantePicker";
+import { ConfirmarExclusao } from "./ConfirmarExclusao";
 import { formatBR } from "@/lib/dates";
 import type { Integrante, Laurea, Perfil } from "@/lib/types";
 
 export function LaureasClient({ laureas, integrantes, perfil }: { laureas: Laurea[]; integrantes: Integrante[]; perfil: Perfil }) {
   const [form, setForm] = useState<null | "novo" | Laurea>(null);
+  const [excluindo, setExcluindo] = useState<Laurea | null>(null);
   const [erro, setErro] = useState("");
   const [pending, start] = useTransition();
   const router = useRouter();
@@ -16,6 +18,14 @@ export function LaureasClient({ laureas, integrantes, perfil }: { laureas: Laure
   const ordenadas = [...laureas].sort((a, b) => b.dataConcessao.localeCompare(a.dataConcessao));
 
   const editando = form !== null && form !== "novo" ? form : null;
+
+  function excluir() {
+    if (!excluindo) return;
+    start(async () => {
+      try { await excluirLaurea(excluindo.id); setExcluindo(null); router.refresh(); }
+      catch (e) { setErro(e instanceof Error ? e.message : "Erro"); }
+    });
+  }
 
   function enviar(fd: FormData) {
     setErro("");
@@ -91,8 +101,9 @@ export function LaureasClient({ laureas, integrantes, perfil }: { laureas: Laure
                 <td data-label="Boletim Interno Nº" className="px-3 py-2">{l.referencia || "—"}</td>
                 <td data-label="Observação" className="px-3 py-2">{l.observacao || "—"}</td>
                 {podeGerenciar && (
-                  <td data-label="Ações" className="px-3 py-2">
+                  <td data-label="Ações" className="px-3 py-2 space-x-2">
                     <button onClick={() => setForm(l)} className="text-xs text-[#1f3a5f] underline">Editar</button>
+                    <button onClick={() => setExcluindo(l)} className="text-xs text-red-700 underline">Excluir</button>
                   </td>
                 )}
               </tr>
@@ -101,6 +112,14 @@ export function LaureasClient({ laureas, integrantes, perfil }: { laureas: Laure
           </tbody>
         </table>
       </div>
+
+      <ConfirmarExclusao
+        aberto={excluindo !== null}
+        titulo={excluindo ? `Excluir láurea ${excluindo.grau} de ${nomes.get(excluindo.integranteId) ?? excluindo.integranteId}?` : ""}
+        onConfirmar={excluir}
+        onCancelar={() => setExcluindo(null)}
+        pending={pending}
+      />
     </div>
   );
 }

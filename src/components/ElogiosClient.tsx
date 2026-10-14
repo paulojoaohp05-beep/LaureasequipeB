@@ -1,7 +1,9 @@
 "use client";
 import { useMemo, useState, useTransition } from "react";
-import { criarElogio, editarElogio, corrigirElogio, publicarElogio, negarElogio } from "@/server/actions";
+import { useRouter } from "next/navigation";
+import { criarElogio, editarElogio, corrigirElogio, publicarElogio, negarElogio, excluirElogio } from "@/server/actions";
 import { IntegrantePicker } from "./IntegrantePicker";
+import { ConfirmarExclusao } from "./ConfirmarExclusao";
 import { formatBR } from "@/lib/dates";
 import type { Elogio, Integrante, Perfil } from "@/lib/types";
 
@@ -11,8 +13,10 @@ export function ElogiosClient({ elogios, integrantes, perfil }: { elogios: Elogi
   const [form, setForm] = useState<Form | null>(null);
   const [jaPublicado, setJaPublicado] = useState(false);
   const [filtro, setFiltro] = useState("");
+  const [excluindo, setExcluindo] = useState<Elogio | null>(null);
   const [erro, setErro] = useState("");
   const [pending, start] = useTransition();
+  const router = useRouter();
   const nomes = useMemo(() => new Map(integrantes.map(i => [i.id, i.nomeGuerra || i.nome])), [integrantes]);
   const podeGerenciar = perfil === "admin" || perfil === "gestor";
   // Servidor enforce a posse para editor; no cliente basta esconder do visualizador.
@@ -67,6 +71,13 @@ export function ElogiosClient({ elogios, integrantes, perfil }: { elogios: Elogi
     const j = prompt("Justificativa da negativa:") ?? "";
     if (!j.trim()) return;
     start(async () => { try { await negarElogio(id, j); } catch (e) { setErro(e instanceof Error ? e.message : "Erro"); } });
+  }
+  function excluir() {
+    if (!excluindo) return;
+    start(async () => {
+      try { await excluirElogio(excluindo.id); setExcluindo(null); router.refresh(); }
+      catch (e) { setErro(e instanceof Error ? e.message : "Erro"); }
+    });
   }
 
   const e = form && form.modo !== "novo" ? form.e : null;
@@ -177,6 +188,9 @@ export function ElogiosClient({ elogios, integrantes, perfil }: { elogios: Elogi
                   {(e.situacao === "publicado" || e.situacao === "negado") && podeGerenciar && (
                     <button onClick={() => { setForm({ modo: "corrigir", e }); setJaPublicado(false); }} className="text-xs text-[#1f3a5f] underline">Corrigir</button>
                   )}
+                  {(podeGerenciar || (podeEditar && (e.situacao === "solicitado" || e.situacao === "rascunho"))) && (
+                    <button onClick={() => setExcluindo(e)} className="text-xs text-red-700 underline">Excluir</button>
+                  )}
                 </td>
               </tr>
             ))}
@@ -184,6 +198,14 @@ export function ElogiosClient({ elogios, integrantes, perfil }: { elogios: Elogi
           </tbody>
         </table>
       </div>
+
+      <ConfirmarExclusao
+        aberto={excluindo !== null}
+        titulo={`Excluir "${excluindo?.titulo ?? ""}"?`}
+        onConfirmar={excluir}
+        onCancelar={() => setExcluindo(null)}
+        pending={pending}
+      />
     </div>
   );
 }

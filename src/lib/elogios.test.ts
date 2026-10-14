@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { podeTransitar, assertPodeEditar, assertPodePublicarOuCancelar, assertPodeCorrigir, assertPublicacaoCompleta, assertSolicitante, ErroPermissao, ErroValidacao } from "./elogios";
+import { podeTransitar, assertPodeEditar, assertPodePublicarOuCancelar, assertPodeCorrigir, assertPodeExcluirElogio, assertPublicacaoCompleta, assertSolicitante, ErroPermissao, ErroValidacao } from "./elogios";
 import type { Elogio } from "./types";
 
 const base: Elogio = {
@@ -42,6 +42,14 @@ describe("permissões de edição", () => {
     expect(() => assertPodeCorrigir("gestor")).not.toThrow();
     expect(() => assertPodeCorrigir("editor")).toThrow(ErroPermissao);
     expect(() => assertPodeCorrigir("visualizador")).toThrow(ErroPermissao);
+  });
+  it("exclusão: admin/gestor qualquer situação; editor só o próprio não publicado; visualizador nunca", () => {
+    expect(() => assertPodeExcluirElogio({ ...base, situacao: "publicado" }, "admin", "qualquer")).not.toThrow();
+    expect(() => assertPodeExcluirElogio({ ...base, situacao: "negado" }, "gestor", "qualquer")).not.toThrow();
+    expect(() => assertPodeExcluirElogio(base, "editor", "u1")).not.toThrow();
+    expect(() => assertPodeExcluirElogio(base, "editor", "outro")).toThrow(ErroPermissao);
+    expect(() => assertPodeExcluirElogio({ ...base, situacao: "publicado" }, "editor", "u1")).toThrow(ErroPermissao);
+    expect(() => assertPodeExcluirElogio(base, "visualizador", "u1")).toThrow(ErroPermissao);
   });
 });
 

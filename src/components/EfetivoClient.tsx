@@ -56,10 +56,10 @@ export function EfetivoClient({ itens, perfil }: { itens: Item[]; perfil: Perfil
     });
   }
 
-  function excluir(motivo: string) {
+  function excluir() {
     if (!excluindo) return;
     start(async () => {
-      try { await excluirMembro(excluindo.id, motivo); setExcluindo(null); router.refresh(); }
+      try { await excluirMembro(excluindo.id); setExcluindo(null); router.refresh(); }
       catch (e) { setErro(e instanceof Error ? e.message : "Erro"); }
     });
   }
@@ -169,8 +169,7 @@ export function EfetivoClient({ itens, perfil }: { itens: Item[]; perfil: Perfil
 
       <ConfirmarExclusao
         aberto={excluindo !== null}
-        titulo={`Excluir ${excluindo?.nome ?? ""}`}
-        descricao="O integrante sai deste módulo (exclusão lógica, com registro em auditoria). O cadastro do caixa não é alterado."
+        titulo={`Excluir ${excluindo?.nome ?? ""}?`}
         onConfirmar={excluir}
         onCancelar={() => setExcluindo(null)}
         pending={pending}

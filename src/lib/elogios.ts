@@ -44,6 +44,13 @@ export function assertPodeCorrigir(perfil: Perfil) {
   if (perfil !== "admin" && perfil !== "gestor") throw new ErroPermissao("Somente administrador ou gestor corrige registros");
 }
 
+/** Exclusão física de elogio: admin/gestor qualquer; editor só o próprio e apenas rascunho/solicitado. */
+export function assertPodeExcluirElogio(e: Elogio, perfil: Perfil, uid: string) {
+  if (perfil === "admin" || perfil === "gestor") return;
+  if (perfil === "editor") assertPodeEditar(e, perfil, uid);
+  else throw new ErroPermissao();
+}
+
 /** Solicitante pode ser o próprio usuário vinculado (editor) ou escolhido por admin/gestor. */
 export function assertSolicitante(perfil: Perfil, solicitanteId: string, integranteVinculadoId?: string) {
   if (perfil === "admin" || perfil === "gestor") return;
