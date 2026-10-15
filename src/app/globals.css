@@ -1,8 +1,30 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  color-scheme: light;
+}
+
+.dark {
+  --background: #020617;
+  --foreground: #f1f5f9;
+  color-scheme: dark;
+}
+
+/* Campos nativos no escuro (inputs/selects/textareas herdam só borda via utilitários). */
+.dark input:not([type="checkbox"]):not([type="radio"]),
+.dark select,
+.dark textarea {
+  background-color: #1e293b;
+  color: #f1f5f9;
+  border-color: #475569;
+}
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: #64748b;
 }
 
 @theme inline {
@@ -57,6 +79,9 @@ body {
     border: 1px solid #e2e8f0;
     border-radius: 0.5rem;
   }
+  .dark .mobile-cards tr {
+    border-color: #334155;
+  }
   .mobile-cards tr:last-child {
     margin-bottom: 0;
   }
@@ -73,6 +98,9 @@ body {
     font-size: 0.75rem;
     font-weight: 600;
   }
+  .dark .mobile-cards td::before {
+    color: #94a3b8;
+  }
   .mobile-cards td[colspan] {
     display: block;
   }
@@ -86,6 +114,26 @@ body {
 }
 
 @media print {
+  /* Impressão sempre clara, mesmo com o tema escuro ativo. */
+  html.dark {
+    color-scheme: light;
+  }
+  html.dark,
+  html.dark body {
+    background: #fff;
+    color: #171717;
+  }
+  html.dark *:not(svg):not(svg *) {
+    background-color: transparent;
+    color: #171717;
+    border-color: #cbd5e1;
+  }
+  html.dark .text-\[\#1f3a5f\] {
+    color: #1f3a5f;
+  }
+  html.dark .text-\[\#c9a227\] {
+    color: #c9a227;
+  }
   header,
   .no-print {
     display: none !important;
@@ -136,7 +184,7 @@ body {
   }
   h2 {
     font-weight: 600;
-    color: #1f3a5f;
+    color: #1f3a5f !important;
     margin-bottom: 6px;
   }
   .bar-elogios {

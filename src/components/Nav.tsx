@@ -5,6 +5,7 @@ import { getClientAuth } from "@/lib/firebase/client";
 import { signOut } from "firebase/auth";
 import { useState } from "react";
 import type { Perfil } from "@/lib/types";
+import { ThemeToggle } from "./ThemeToggle";
 
 const LINKS = [
   ["/", "Início"], ["/efetivo", "Efetivo"], ["/elogios", "Elogios"], ["/laureas", "Láureas"], ["/relatorios", "Relatórios"], ["/admin", "Administração"],
@@ -30,11 +31,15 @@ export function Nav({ perfil }: { perfil: Perfil | null }) {
         <Link href="/" className="font-semibold tracking-wide">
           Controle de Láureas <span className="text-[#c9a227]">— Equipe B</span>
         </Link>
-        <button aria-label="Abrir menu" className="md:hidden rounded px-3 py-1 border border-white/30" onClick={() => setOpen(!open)}>☰</button>
+        <div className="flex items-center gap-1 md:hidden">
+          <ThemeToggle />
+          <button aria-label="Abrir menu" className="rounded px-3 py-1 border border-white/30" onClick={() => setOpen(!open)}>☰</button>
+        </div>
         <nav className="hidden gap-4 md:flex items-center">
           {links.map(([h, l]) => (
             <Link key={h} href={h} className={`text-sm hover:text-[#c9a227] ${path === h ? "text-[#c9a227]" : ""}`}>{l}</Link>
           ))}
+          <ThemeToggle />
           <button onClick={sair} className="text-sm underline underline-offset-2 hover:text-[#c9a227]">Sair</button>
         </nav>
       </div>
