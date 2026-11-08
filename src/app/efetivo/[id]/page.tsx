@@ -29,6 +29,8 @@ export default async function FichaPage({ params }: { params: Promise<{ id: stri
           <div><dt className="text-slate-500 dark:text-slate-400">Ingresso na equipe</dt><dd>{formatBR(ingresso)}{!ingresso && <span className="text-xs text-amber-700 dark:text-amber-400"> pendente</span>}</dd></div>
           <div><dt className="text-slate-500 dark:text-slate-400">Tempo na equipe</dt><dd>{ingresso ? `${anosEntre(ingresso, hojeSP())} ano(s)` : "—"}</dd></div>
           <div><dt className="text-slate-500 dark:text-slate-400">Situação</dt><dd>{complemento?.situacaoEquipe ?? i.situacao ?? "ativo"}</dd></div>
+          <div><dt className="text-slate-500 dark:text-slate-400">CNH</dt><dd>{complemento?.cnh || "—"}</dd></div>
+          <div><dt className="text-slate-500 dark:text-slate-400">SAT</dt><dd>{complemento?.sat || "—"}</dd></div>
         </dl>
       </section>
 

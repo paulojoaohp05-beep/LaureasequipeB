@@ -14,6 +14,8 @@ export interface Integrante {
   funcao?: string;
   situacao?: SituacaoIntegrante | string; // conforme existente no cadastro
   ingressoPM?: string; // data civil AAAA-MM-DD
+  cnh?: string; // categoria CNH (ex.: "AB"), normalizada maiúscula sem "/"
+  sat?: string; // categoria SAT
 }
 
 /** Complemento deste módulo — nunca substitui o cadastro mestre.
@@ -26,6 +28,8 @@ export interface ComplementoEfetivo {
   nomeGuerra?: string;
   funcao?: string;
   situacaoEquipe?: string;
+  cnh?: string;
+  sat?: string;
   excluidoEm?: string;
   excluidoPorUid?: string;
   motivoExclusao?: string;
@@ -104,6 +108,7 @@ export interface Importacao {
   iniciadoEm?: string;
   concluidoEm?: string;
   modo: "simulacao" | "gravacao";
+  tipo?: string; // "efetivo" (padrão) | "habilitacoes"
   resumo: {
     lidas: number;
     existentes: number;
@@ -113,6 +118,10 @@ export interface Importacao {
     invalidas: number;
     criados: number;
     aplicados: number;
+    // Extras da importação de habilitações (CNH/SAT)
+    reDivergentes?: number;
+    ambiguos?: number;
+    atualizados?: number;
   };
 }
 

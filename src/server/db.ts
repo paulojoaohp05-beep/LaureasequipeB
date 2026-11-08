@@ -54,6 +54,8 @@ function mapearMembro(id: string, d: FirebaseFirestore.DocumentData, c?: Complem
     funcao: c?.funcao,
     situacao: c?.situacaoEquipe ?? "ativo",
     ingressoPM: c?.ingressoPM,
+    cnh: c?.cnh,
+    sat: c?.sat,
   };
 }
 

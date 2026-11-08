@@ -2,6 +2,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { formatBR } from "@/lib/dates";
+import { normalizarCategoria, normalizarSat } from "@/lib/habilitacao";
 import { criarMembro, editarMembro, excluirMembro } from "@/server/actions";
 import { ConfirmarExclusao } from "./ConfirmarExclusao";
 import type { Integrante, ComplementoEfetivo, Perfil } from "@/lib/types";
@@ -45,6 +46,8 @@ export function EfetivoClient({ itens, perfil }: { itens: Item[]; perfil: Perfil
       graduacao: String(fd.get("graduacao") ?? ""), nomeGuerra: String(fd.get("nomeGuerra") ?? "") || undefined,
       ingressoPM: String(fd.get("ingressoPM") ?? "") || undefined,
       ingressoEquipe: String(fd.get("ingressoEquipe") ?? "") || undefined,
+      cnh: normalizarCategoria(fd.get("cnh")),
+      sat: normalizarSat(fd.get("sat")),
     };
     start(async () => {
       try {
@@ -123,6 +126,12 @@ export function EfetivoClient({ itens, perfil }: { itens: Item[]; perfil: Perfil
           <label className="text-sm">Ingresso na equipe
             <input name="ingressoEquipe" type="date" defaultValue={editando === "novo" ? "" : editando.complemento?.ingressoEquipe ?? ""} className="mt-1 w-full rounded border border-slate-300 dark:border-slate-600 px-2 py-1.5" />
           </label>
+          <label className="text-sm">CNH
+            <input name="cnh" placeholder="AB" defaultValue={editando === "novo" ? "" : editando.complemento?.cnh ?? ""} className="mt-1 w-full rounded border border-slate-300 dark:border-slate-600 px-3 py-1.5 uppercase" />
+          </label>
+          <label className="text-sm">SAT
+            <input name="sat" placeholder="AB" defaultValue={editando === "novo" ? "" : editando.complemento?.sat ?? ""} className="mt-1 w-full rounded border border-slate-300 dark:border-slate-600 px-3 py-1.5 uppercase" />
+          </label>
           {editando !== "novo" && (
             <label className="text-sm">Situação na equipe
               <select name="situacaoEquipe" defaultValue={editando.complemento?.situacaoEquipe ?? "ativo"} className="mt-1 w-full rounded border border-slate-300 dark:border-slate-600 px-2 py-1.5">
@@ -141,7 +150,7 @@ export function EfetivoClient({ itens, perfil }: { itens: Item[]; perfil: Perfil
       <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
         <table className="mobile-cards w-full min-w-[720px] text-sm">
           <thead className="bg-slate-50 dark:bg-slate-800 text-left text-slate-600 dark:text-slate-400">
-            <tr><th className="px-3 py-2">Graduação</th><th className="px-3 py-2">RE</th><th className="px-3 py-2">Nome</th><th className="px-3 py-2">Elogios</th><th className="px-3 py-2">Láurea</th><th className="px-3 py-2">Ingresso equipe</th><th className="px-3 py-2">Situação</th>{podeGerenciar && <th className="px-3 py-2">Ações</th>}</tr>
+            <tr><th className="px-3 py-2">Graduação</th><th className="px-3 py-2">RE</th><th className="px-3 py-2">Nome</th><th className="px-3 py-2">CNH</th><th className="px-3 py-2">SAT</th><th className="px-3 py-2">Elogios</th><th className="px-3 py-2">Láurea</th><th className="px-3 py-2">Ingresso equipe</th><th className="px-3 py-2">Situação</th>{podeGerenciar && <th className="px-3 py-2">Ações</th>}</tr>
           </thead>
           <tbody>
             {lista.map(i => (
@@ -149,6 +158,8 @@ export function EfetivoClient({ itens, perfil }: { itens: Item[]; perfil: Perfil
                 <td data-label="Graduação" className="px-3 py-2">{i.graduacao}</td>
                 <td data-label="RE" className="px-3 py-2 font-mono">{i.re}</td>
                 <td data-label="Nome" className="px-3 py-2">{i.nome}{i.nomeGuerra ? ` (${i.nomeGuerra})` : ""}</td>
+                <td data-label="CNH" className="px-3 py-2">{i.complemento?.cnh || "—"}</td>
+                <td data-label="SAT" className="px-3 py-2">{i.complemento?.sat || "—"}</td>
                 <td data-label="Elogios" className="px-3 py-2">{i.totalElogiosPublicados === null ? <span className="text-xs text-slate-400 dark:text-slate-500">sem registro</span> : i.totalElogiosPublicados}</td>
                 <td data-label="Láurea" className="px-3 py-2">{i.laureaVigente ? <>{i.laureaVigente.grau} <span className="text-xs text-slate-500 dark:text-slate-400">({formatBR(i.laureaVigente.data)})</span></> : <span className="text-xs text-slate-400 dark:text-slate-500">sem registro</span>}</td>
                 <td data-label="Ingresso equipe" className="px-3 py-2">{formatBR(i.complemento?.ingressoEquipe)}{!i.complemento?.ingressoEquipe && <span className="text-xs text-amber-700 dark:text-amber-400"> pendente</span>}</td>

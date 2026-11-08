@@ -8,6 +8,8 @@ import { COL } from "./db";
 import { assertPodeEditar, assertPodeCorrigir, assertPodeExcluirElogio, assertPodePublicarOuCancelar, assertPublicacaoCompleta, assertSolicitante, assertTransicao, ErroValidacao } from "@/lib/elogios";
 import { isDataCivil, periodoBounds, dentroPeriodo, hojeSP } from "@/lib/dates";
 import { lerPlanilha, reconciliar, hashPlanilhaRe } from "@/lib/planilha";
+import { lerPlanilhaHabilitacoes, reconciliarHabilitacoes } from "@/lib/planilha-habilitacao";
+import { normalizarCategoria, normalizarSat } from "@/lib/habilitacao";
 import type { Elogio, Laurea, Perfil, FiltroPeriodo } from "@/lib/types";
 
 const EQUIPE = "equipe-b";
@@ -405,7 +407,7 @@ export async function importarPlanilha(base64: string, nomeArquivo: string, modo
 // com 0 e jamais tocados depois.
 const GRADUACOES = ["CAP PM", "1º TEN PM", "2º TEN PM", "SUBTEN PM", "1º SGT PM", "2º SGT PM", "3º SGT PM", "CB PM", "SD PM"];
 
-export async function criarMembro(input: { re: string; nome: string; graduacao: string; nomeGuerra?: string; ingressoEquipe?: string; ingressoPM?: string }) {
+export async function criarMembro(input: { re: string; nome: string; graduacao: string; nomeGuerra?: string; ingressoEquipe?: string; ingressoPM?: string; cnh?: string; sat?: string }) {
   const s = await exigirPerfil("admin", "gestor"); assertEquipe(s);
   const re = input.re?.trim(), nome = input.nome?.trim();
   if (!re) throw new ErroValidacao("RE obrigatório");
@@ -427,13 +429,16 @@ export async function criarMembro(input: { re: string; nome: string; graduacao: 
     if (input.nomeGuerra?.trim()) comp.nomeGuerra = input.nomeGuerra.trim();
     if (input.ingressoEquipe) comp.ingressoEquipe = input.ingressoEquipe;
     if (input.ingressoPM) comp.ingressoPM = input.ingressoPM;
+    const cnh = normalizarCategoria(input.cnh), sat = normalizarSat(input.sat);
+    if (cnh) comp.cnh = cnh; // vazio = sem informação; não grava
+    if (sat) comp.sat = sat;
     t.create(compRef, comp);
     t.create(adminDb.collection(COL.auditoria).doc(), { acao: "membro.criar", entidade: "membro", entidadeId: ref.id, autorUid: s.uid, autorEmail: s.email, em: FieldValue.serverTimestamp() });
   });
   return { id: ref.id };
 }
 
-export async function editarMembro(id: string, dados: { re?: string; nome?: string; graduacao?: string; nomeGuerra?: string; ingressoEquipe?: string; ingressoPM?: string; situacaoEquipe?: string }) {
+export async function editarMembro(id: string, dados: { re?: string; nome?: string; graduacao?: string; nomeGuerra?: string; ingressoEquipe?: string; ingressoPM?: string; situacaoEquipe?: string; cnh?: string; sat?: string }) {
   const s = await exigirPerfil("admin", "gestor"); assertEquipe(s);
   if (dados.ingressoEquipe && !isDataCivil(dados.ingressoEquipe)) throw new ErroValidacao("Data de ingresso na equipe inválida");
   if (dados.ingressoPM && !isDataCivil(dados.ingressoPM)) throw new ErroValidacao("Data de ingresso na PM inválida");
@@ -463,6 +468,13 @@ export async function editarMembro(id: string, dados: { re?: string; nome?: stri
       const v = dados[k];
       if (v !== undefined && v !== "" && v !== compAntes[k]) { updComp[k] = v; campos[k] = { antes: compAntes[k], depois: v }; }
     }
+    // CNH/SAT: vazio EXPLÍCITO grava "" — admin/gestor pode limpar manualmente.
+    for (const k of ["cnh", "sat"] as const) {
+      if (dados[k] === undefined) continue;
+      const normalizar = k === "sat" ? normalizarSat : normalizarCategoria;
+      const v = normalizar(dados[k]);
+      if (v !== normalizar(compAntes[k])) { updComp[k] = v; campos[k] = { antes: compAntes[k], depois: v }; }
+    }
     const final = { ...compAntes, ...updComp };
     const pendentes: string[] = [];
     if (!final.ingressoEquipe) pendentes.push("ingressoEquipe");
@@ -491,15 +503,78 @@ export async function excluirMembro(id: string, motivo?: string) {
 }
 
 // ---------- Complemento cadastral (admin) ----------
-export async function salvarComplemento(integranteId: string, dados: { ingressoEquipe?: string; ingressoPM?: string; nomeGuerra?: string; funcao?: string; situacaoEquipe?: string }) {
+export async function salvarComplemento(integranteId: string, dados: { ingressoEquipe?: string; ingressoPM?: string; nomeGuerra?: string; funcao?: string; situacaoEquipe?: string; cnh?: string; sat?: string }) {
   const s = await exigirPerfil("admin", "gestor"); assertEquipe(s);
   if (dados.ingressoEquipe && !isDataCivil(dados.ingressoEquipe)) throw new ErroValidacao("Data de ingresso inválida");
   if (dados.ingressoPM && !isDataCivil(dados.ingressoPM)) throw new ErroValidacao("Data de ingresso na PM inválida");
   const pendentes: string[] = [];
   if (!dados.ingressoEquipe) pendentes.push("ingressoEquipe");
   if (!dados.ingressoPM) pendentes.push("ingressoPM");
+  const atual = await db.complementoDe(integranteId);
   // merge parcial: campos ausentes ficam ausentes; vazios não limpam valores conhecidos
-  const limpo = Object.fromEntries(Object.entries(dados).filter(([, v]) => v !== undefined && v !== ""));
+  const limpo = Object.fromEntries(Object.entries(dados).filter(([k, v]) => v !== undefined && v !== "" && k !== "cnh" && k !== "sat"));
+  // CNH/SAT: vazio EXPLÍCITO grava "" — limpeza manual permitida.
+  const camposAud: Record<string, { antes?: unknown; depois?: unknown }> = {};
+  for (const k of ["cnh", "sat"] as const) {
+    if (dados[k] === undefined) continue;
+    const normalizar = k === "sat" ? normalizarSat : normalizarCategoria;
+    const v = normalizar(dados[k]);
+    if (v !== normalizar(atual?.[k])) { limpo[k] = v; camposAud[k] = { antes: atual?.[k], depois: v }; }
+  }
   await adminDb.collection(COL.complementos).doc(integranteId).set({ integranteId, ...limpo, camposPendentes: pendentes, schemaVersion: 1 }, { merge: true });
-  await db.auditar({ acao: "complemento.salvar", entidade: "efetivoComplemento", entidadeId: integranteId, autorUid: s.uid, autorEmail: s.email });
+  await db.auditar({ acao: "complemento.salvar", entidade: "efetivoComplemento", entidadeId: integranteId, autorUid: s.uid, autorEmail: s.email, ...(Object.keys(camposAud).length ? { campos: camposAud } : {}) });
+}
+
+// ---------- Importação de habilitações (CNH/SAT) ----------
+// Nunca escreve em `membros`: só atualiza `efetivoComplementos` (merge) com as
+// categorias preenchidas que divergem do cadastro. Célula vazia nunca limpa.
+export async function importarHabilitacoes(base64: string, nomeArquivo: string, modo: "simulacao" | "gravacao", hashRevisado?: string) {
+  const s = await exigirPerfil("admin"); assertEquipe(s);
+  if (modo !== "simulacao" && modo !== "gravacao") throw new ErroValidacao("Modo inválido");
+  const buf = Buffer.from(base64, "base64");
+  if (buf.length > 5 * 1024 * 1024) throw new ErroValidacao("Arquivo muito grande (máx. 5 MB)");
+  const leitura = lerPlanilhaHabilitacoes(buf);
+  const integrantes = await db.listarIntegrantes();
+  const cadastro = integrantes.map(i => ({ id: i.id, re: i.re, nome: i.nome, cnh: i.complemento?.cnh, sat: i.complemento?.sat }));
+  const { resultados, resumo } = reconciliarHabilitacoes(leitura.linhas, cadastro);
+  const hash = hashPlanilhaRe(buf);
+  const hashPlano = hashPlanilhaRe(Buffer.from(JSON.stringify({ hash, cadastro: [...cadastro].sort((a, b) => a.id.localeCompare(b.id)), resultados })));
+  if (modo === "gravacao" && hashRevisado !== hashPlano) throw new ErroValidacao("Simule e revise novamente: arquivo ou cadastro diferente da simulação.");
+
+  const rel = {
+    lidas: leitura.linhas.length,
+    invalidas: leitura.invalidas,
+    ...resumo,
+    detalhes: resultados.map(r =>
+      r.tipo === "nao-encontrado" ? { tipo: r.tipo, linha: r.linha.linha, re: r.linha.re, nome: r.linha.nome }
+      : r.tipo === "ambiguo" ? { tipo: r.tipo, linha: r.linha.linha, re: r.linha.re, nome: r.linha.nome, candidatos: r.candidatos.map(c => ({ id: c.id, re: c.re, nome: c.nome })) }
+      : { tipo: r.tipo, linha: r.linha.linha, integranteId: r.integrante.id, nome: r.integrante.nome, rePlanilha: r.linha.re, reCadastro: r.integrante.re, campos: r.campos, antes: { cnh: r.integrante.cnh ?? "", sat: r.integrante.sat ?? "" } }),
+    hash, hashPlano,
+  };
+
+  if (modo === "simulacao") return { modo, ...rel, aplicados: 0 };
+
+  const batch = adminDb.batch();
+  let aplicados = 0;
+  for (const r of resultados) {
+    if ((r.tipo === "atualizar" || r.tipo === "re-divergente") && Object.keys(r.campos).length) {
+      batch.set(adminDb.collection(COL.complementos).doc(r.integrante.id),
+        { integranteId: r.integrante.id, ...r.campos, schemaVersion: 1 }, { merge: true });
+      aplicados++;
+    }
+    // nao-encontrado e ambiguo nunca são resolvidos silenciosamente
+  }
+  const impRef = adminDb.collection(COL.importacoes).doc();
+  batch.create(impRef, {
+    equipeId: EQUIPE, tipo: "habilitacoes", arquivoHash: hash, arquivoNome: nomeArquivo, autorUid: s.uid, modo,
+    iniciadoEm: FieldValue.serverTimestamp(),
+    resumo: {
+      lidas: rel.lidas, existentes: resumo.exatos, complementos: 0, divergencias: resumo.reDivergentes,
+      naoEncontrados: resumo.naoEncontrados, invalidas: leitura.invalidas.length, criados: 0, aplicados,
+      reDivergentes: resumo.reDivergentes, ambiguos: resumo.ambiguos, atualizados: resumo.atualizar,
+    },
+  });
+  batch.create(adminDb.collection(COL.auditoria).doc(), { acao: "importacao.habilitacoes", entidade: "importacao", entidadeId: impRef.id, autorUid: s.uid, autorEmail: s.email, em: FieldValue.serverTimestamp() });
+  await batch.commit();
+  return { modo, ...rel, aplicados };
 }

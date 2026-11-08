@@ -1,6 +1,6 @@
 "use client";
 import { useState, useTransition } from "react";
-import { definirUsuario, importarPlanilha } from "@/server/actions";
+import { definirUsuario, importarPlanilha, importarHabilitacoes } from "@/server/actions";
 import type { Integrante, UsuarioModulo } from "@/lib/types";
 
 export function AdminClient({ usuarios, integrantes }: { usuarios: UsuarioModulo[]; integrantes: Integrante[] }) {
@@ -15,7 +15,12 @@ export function AdminClient({ usuarios, integrantes }: { usuarios: UsuarioModulo
           </button>
         ))}
       </div>
-      {aba === "usuarios" ? <Usuarios usuarios={usuarios} integrantes={integrantes} /> : <Importacao />}
+      {aba === "usuarios" ? <Usuarios usuarios={usuarios} integrantes={integrantes} /> : (
+        <div className="flex flex-col gap-6">
+          <Importacao />
+          <ImportacaoHabilitacoes />
+        </div>
+      )}
     </div>
   );
 }
@@ -132,6 +137,118 @@ function Importacao() {
       </div>
       {rel && (
         <pre className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 text-xs">{JSON.stringify(rel, null, 2)}</pre>
+      )}
+    </div>
+  );
+}
+
+type DetalheHab = {
+  tipo: string; linha?: number; re?: string; nome?: string; integranteId?: string;
+  rePlanilha?: string; reCadastro?: string; campos?: { cnh?: string; sat?: string }; antes?: { cnh: string; sat: string };
+  candidatos?: { id: string; re: string; nome: string }[];
+};
+type RelHab = {
+  modo: string; hashPlano: string; lidas: number; exatos: number; atualizar: number; inalterados: number;
+  reDivergentes: number; naoEncontrados: number; ambiguos: number; aplicados: number;
+  invalidas: { linha: number; motivo: string }[]; detalhes: DetalheHab[];
+};
+
+function ImportacaoHabilitacoes() {
+  const [arquivo, setArquivo] = useState<File | null>(null);
+  const [rel, setRel] = useState<RelHab | null>(null);
+  const [revisado, setRevisado] = useState(false);
+  const [erro, setErro] = useState("");
+  const [pending, start] = useTransition();
+
+  function enviar(modo: "simulacao" | "gravacao") {
+    if (!arquivo) { setErro("Selecione a planilha .xlsx"); return; }
+    if (modo === "gravacao" && (!revisado || rel?.modo !== "simulacao")) return;
+    setErro("");
+    setRevisado(false);
+    start(async () => {
+      try {
+        if (arquivo.size > 5 * 1024 * 1024) throw new Error("Arquivo muito grande (máx. 5 MB)");
+        const bytes = new Uint8Array(await arquivo.arrayBuffer());
+        let binario = "";
+        for (let i = 0; i < bytes.length; i += 8192) binario += String.fromCharCode(...bytes.subarray(i, i + 8192));
+        const r = await importarHabilitacoes(btoa(binario), arquivo.name, modo, modo === "gravacao" ? rel?.hashPlano : undefined);
+        setRel(r);
+      } catch (e) { setRel(null); setErro(e instanceof Error ? e.message : "Erro na importação"); }
+    });
+  }
+
+  const divergentes = rel?.detalhes.filter(d => d.tipo === "re-divergente") ?? [];
+  const naoEncontrados = rel?.detalhes.filter(d => d.tipo === "nao-encontrado") ?? [];
+  const ambiguos = rel?.detalhes.filter(d => d.tipo === "ambiguo") ?? [];
+
+  return (
+    <div className="flex flex-col gap-3">
+      <h2 className="font-semibold text-[#1f3a5f] dark:text-[#8fb3e6]">Importar CNH e SAT</h2>
+      <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
+        <p className="text-xs text-slate-500 dark:text-slate-400">Planilha de antiguidade (.xlsx, aba ANTIGUIDADE). Vínculo por RE-base + primeiro nome, tolerando dígito divergente; nunca apenas por nome completo. A/B = AB; *** = não possui SAT. Célula vazia não apaga o cadastro.</p>
+        <label className="mt-2 block text-sm">Planilha de habilitações (.xlsx)
+          <input type="file" accept=".xlsx" disabled={pending} onChange={e => { setArquivo(e.target.files?.[0] ?? null); setRel(null); setRevisado(false); setErro(""); }} className="mt-1 block w-full text-sm" />
+        </label>
+        <div className="mt-3 flex gap-2">
+          <button onClick={() => enviar("simulacao")} disabled={pending} className="rounded border border-[#1f3a5f] dark:border-[#8fb3e6] px-4 py-1.5 text-sm text-[#1f3a5f] dark:text-[#8fb3e6]">Simular (sem gravar)</button>
+          <button onClick={() => enviar("gravacao")} disabled={pending || !revisado || !rel || rel.modo !== "simulacao" || !rel.atualizar} className="rounded bg-[#1f3a5f] dark:bg-[#2e5283] px-4 py-1.5 text-sm text-white disabled:opacity-50">Aplicar</button>
+        </div>
+        {erro && <p role="alert" className="mt-2 text-sm text-red-700 dark:text-red-400">{erro}</p>}
+      </div>
+      {rel && (
+        <div className="flex flex-col gap-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 text-sm">
+          <p>
+            {rel.lidas} linha(s) lidas — {rel.exatos} exata(s), {rel.atualizar} a atualizar, {rel.inalterados} inalterada(s)
+            {rel.modo === "gravacao" && <> — <strong>{rel.aplicados} aplicada(s)</strong></>}
+          </p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead><tr><th className="p-2">Linha / Nome</th><th className="p-2">RE planilha → cadastro</th><th className="p-2">CNH antes → depois</th><th className="p-2">SAT antes → depois</th></tr></thead>
+              <tbody>{rel.detalhes.filter(d => d.campos && Object.keys(d.campos).length > 0).map((d, i) => (
+                <tr key={i} className="border-t border-slate-200 dark:border-slate-700">
+                  <td className="p-2">{d.linha}: {d.nome}</td><td className="p-2">{d.rePlanilha} → {d.reCadastro}</td>
+                  <td className="p-2">{d.campos?.cnh !== undefined ? `${d.antes?.cnh || "sem informação"} → ${d.campos.cnh}` : "sem alteração"}</td>
+                  <td className="p-2">{d.campos?.sat !== undefined ? `${d.antes?.sat || "sem informação"} → ${d.campos.sat}` : "sem alteração"}</td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </div>
+          {rel.modo === "simulacao" && <label className="flex items-center gap-2">
+            <input type="checkbox" checked={revisado} disabled={pending} onChange={e => setRevisado(e.target.checked)} /> Revisei as alterações e os dígitos divergentes desta simulação.
+          </label>}
+          {divergentes.length > 0 && (
+            <div>
+              <h3 className="font-medium text-amber-700 dark:text-amber-400">RE divergente ({divergentes.length})</h3>
+              <ul className="mt-1 list-inside list-disc text-xs text-slate-600 dark:text-slate-400">
+                {divergentes.map((d, i) => <li key={i}>{d.nome}: RE planilha {d.rePlanilha} → RE cadastro {d.reCadastro}</li>)}
+              </ul>
+            </div>
+          )}
+          {naoEncontrados.length > 0 && (
+            <div>
+              <h3 className="font-medium text-red-700 dark:text-red-400">Não encontrados ({naoEncontrados.length})</h3>
+              <ul className="mt-1 list-inside list-disc text-xs text-slate-600 dark:text-slate-400">
+                {naoEncontrados.map((d, i) => <li key={i}>{d.nome} ({d.re})</li>)}
+              </ul>
+            </div>
+          )}
+          {ambiguos.length > 0 && (
+            <div>
+              <h3 className="font-medium text-amber-700 dark:text-amber-400">Ambíguos ({ambiguos.length})</h3>
+              <ul className="mt-1 list-inside list-disc text-xs text-slate-600 dark:text-slate-400">
+                {ambiguos.map((d, i) => <li key={i}>{d.nome} ({d.re}) — candidatos: {d.candidatos?.map(c => `${c.nome} [${c.re}]`).join(", ")}</li>)}
+              </ul>
+            </div>
+          )}
+          {rel.invalidas.length > 0 && (
+            <div>
+              <h3 className="font-medium text-slate-600 dark:text-slate-400">Linhas inválidas ({rel.invalidas.length})</h3>
+              <ul className="mt-1 list-inside list-disc text-xs text-slate-500 dark:text-slate-500">
+                {rel.invalidas.map((d, i) => <li key={i}>linha {d.linha}: {d.motivo}</li>)}
+              </ul>
+            </div>
+          )}
+        </div>
       )}
     </div>
   );
