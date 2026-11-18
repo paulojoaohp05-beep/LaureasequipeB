@@ -1,18 +1,10 @@
 "use client";
-import { useEffect, useState } from "react";
 
 export function ThemeToggle() {
-  const [escuro, setEscuro] = useState<boolean | null>(null);
-
-  useEffect(() => {
-    setEscuro(document.documentElement.classList.contains("dark"));
-  }, []);
-
   function alternar() {
     const novo = !document.documentElement.classList.contains("dark");
     document.documentElement.classList.toggle("dark", novo);
     try { localStorage.setItem("tema", novo ? "escuro" : "claro"); } catch {}
-    setEscuro(novo);
   }
 
   return (
@@ -20,10 +12,11 @@ export function ThemeToggle() {
       type="button"
       onClick={alternar}
       aria-label="Alternar tema"
-      title={escuro ? "Modo claro" : "Modo escuro"}
+      title="Alternar tema"
       className="flex h-11 w-11 items-center justify-center rounded text-lg hover:bg-white/10"
     >
-      {escuro === null ? "◐" : escuro ? "☀️" : "🌙"}
+      <span className="dark:hidden">🌙</span>
+      <span className="hidden dark:inline">☀️</span>
     </button>
   );
 }

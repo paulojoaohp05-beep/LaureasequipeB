@@ -9,8 +9,13 @@ import { assertPodeEditar, assertPodeCorrigir, assertPodeExcluirElogio, assertPo
 import { isDataCivil, periodoBounds, dentroPeriodo, hojeSP } from "@/lib/dates";
 import { lerPlanilha, reconciliar, hashPlanilhaRe } from "@/lib/planilha";
 import { lerPlanilhaHabilitacoes, reconciliarHabilitacoes } from "@/lib/planilha-habilitacao";
-import { normalizarCategoria, normalizarSat } from "@/lib/habilitacao";
+import { executar } from "@/lib/acao";
+import { calcularMedalha } from "@/lib/medalha";
+import { montarAtualizacaoComplemento } from "@/lib/efetivo";
 import type { Elogio, Laurea, Perfil, FiltroPeriodo } from "@/lib/types";
+
+// Entrada de auditoria sem `undefined` — o Firestore não aceita o valor.
+const dif = (antes: unknown, depois: unknown) => ({ ...(antes !== undefined ? { antes } : {}), depois });
 
 const EQUIPE = "equipe-b";
 
@@ -71,8 +76,18 @@ export async function obterDashboard(filtro: FiltroPeriodo) {
   for (const g of grauMaior.values()) distribuicao[`${g}º`] = (distribuicao[`${g}º`] ?? 0) + 1;
   const semLaurea = ativos.filter(i => !integrantesComLaurea.has(i.id)).length;
 
+  const hoje = hojeSP();
+  const medalhas = { bronze: 0, prata: 0, ouro: 0, pendentes: 0, semData: 0 };
+  for (const i of ativos) {
+    const m = calcularMedalha(i.ingressoPM, i.complemento?.medalhaRecebida, i.complemento?.medalhaRecebidaEm, hoje);
+    if (m.devida) medalhas[m.devida]++;
+    if (m.situacao === "pendente" || m.situacao === "pendente-superior") medalhas.pendentes++;
+    if (m.situacao === "sem-data") medalhas.semData++;
+  }
+
   return {
     efetivoAtivo: ativos.length, // total atual — não varia com o período
+    medalhas,
     elogiosSolicitados: elogiosPeriodo.filter(e => e.situacao === "solicitado").length,
     elogiosPublicados: elogiosPeriodo.filter(e => e.situacao === "publicado").length,
     laureasPeriodo: laureasPeriodo.length,
@@ -100,10 +115,15 @@ export async function obterEfetivo(opts?: { incluirExcluidos?: boolean }) {
     const at = grauPor.get(l.integranteId);
     if (!at || g > parseInt(at.grau) || (g === parseInt(at.grau) && l.dataConcessao > at.data)) grauPor.set(l.integranteId, { grau: l.grau, data: l.dataConcessao });
   }
+  const hoje = hojeSP();
   return integrantes.map(i => ({
     ...i,
     totalElogiosPublicados: elogiosPor.get(i.id) ?? null, // null = sem registro (não presume zero confirmado)
     laureaVigente: grauPor.get(i.id) ?? null,
+    medalha: calcularMedalha(i.ingressoPM, i.complemento?.medalhaRecebida, i.complemento?.medalhaRecebidaEm, hoje),
+    pendencias: [i.complemento?.ingressoEquipe, i.complemento?.ingressoPM].some(v => !v)
+      ? ["ingressoEquipe", "ingressoPM"].filter(k => !i.complemento?.[k as "ingressoEquipe" | "ingressoPM"])
+      : [],
   }));
 }
 
@@ -116,7 +136,8 @@ export async function obterFicha(integranteId: string) {
   const { complemento, ...i } = doc;
   const todos = await db.listarElogios(EQUIPE);
   const elogios = todos.filter(e => e.destinatarioIds.includes(integranteId));
-  return { integrante: i, complemento, laureas, elogios };
+  const medalha = calcularMedalha(i.ingressoPM, complemento?.medalhaRecebida, complemento?.medalhaRecebidaEm);
+  return { integrante: i, complemento, laureas, elogios, medalha };
 }
 
 export async function obterElogios() { const s = await exigirSessao(); assertEquipe(s); return db.listarElogios(EQUIPE); }
@@ -124,6 +145,7 @@ export async function obterLaureas() { const s = await exigirSessao(); assertEqu
 
 // ---------- Mutações: elogios ----------
 export async function criarElogio(input: { titulo: string; descricao?: string; destinatarioIds: string[]; solicitanteId: string; dataSolicitacao?: string; jaPublicado?: boolean; dataPublicacao?: string; referencia?: string }) {
+  return executar(async () => {
   const s = await exigirSessao(); assertEquipe(s);
   if (s.usuario.perfil === "visualizador") throw new ErroValidacao("Perfil de visualização não pode criar registros");
   if (!input.titulo?.trim()) throw new ErroValidacao("Título obrigatório");
@@ -155,9 +177,11 @@ export async function criarElogio(input: { titulo: string; descricao?: string; d
     t.create(adminDb.collection(COL.auditoria).doc(), { acao: "elogio.criar", entidade: "elogio", entidadeId: ref.id, autorUid: s.uid, autorEmail: s.email, em: FieldValue.serverTimestamp() });
   });
   return { id: ref.id };
+  });
 }
 
 export async function publicarElogio(id: string, campos: { dataPublicacao: string; referencia: string }) {
+  return executar(async () => {
   const s = await exigirSessao(); assertEquipe(s);
   assertPodePublicarOuCancelar(s.usuario.perfil);
   assertPublicacaoCompleta(campos);
@@ -172,9 +196,11 @@ export async function publicarElogio(id: string, campos: { dataPublicacao: strin
     t.update(ref, { situacao: "publicado", dataPublicacao: campos.dataPublicacao, referencia: campos.referencia.trim(), publicadoEm: FieldValue.serverTimestamp(), publicadoPorUid: s.uid, atualizadoEm: FieldValue.serverTimestamp() });
     t.create(adminDb.collection(COL.auditoria).doc(), { acao: "elogio.publicar", entidade: "elogio", entidadeId: id, autorUid: s.uid, autorEmail: s.email, em: FieldValue.serverTimestamp() });
   });
+  });
 }
 
 export async function negarElogio(id: string, justificativa: string) {
+  return executar(async () => {
   const s = await exigirSessao(); assertEquipe(s);
   assertPodePublicarOuCancelar(s.usuario.perfil);
   if (!justificativa?.trim()) throw new ErroValidacao("Justificativa obrigatória para negar");
@@ -187,24 +213,11 @@ export async function negarElogio(id: string, justificativa: string) {
     t.update(ref, { situacao: "negado", justificativaNegativa: justificativa.trim(), negadoEm: FieldValue.serverTimestamp(), negadoPorUid: s.uid, atualizadoEm: FieldValue.serverTimestamp() });
     t.create(adminDb.collection(COL.auditoria).doc(), { acao: "elogio.negar", entidade: "elogio", entidadeId: id, autorUid: s.uid, autorEmail: s.email, em: FieldValue.serverTimestamp() });
   });
-}
-
-export async function cancelarElogio(id: string, justificativa: string) {
-  const s = await exigirSessao(); assertEquipe(s);
-  assertPodePublicarOuCancelar(s.usuario.perfil);
-  if (!justificativa?.trim()) throw new ErroValidacao("Justificativa obrigatória para cancelar");
-  const ref = adminDb.collection(COL.elogios).doc(id);
-  await adminDb.runTransaction(async t => {
-    const d = await t.get(ref);
-    if (!d.exists) throw new ErroValidacao("Registro não encontrado");
-    const e = { id: d.id, ...d.data() } as Elogio;
-    assertTransicao(e, "cancelado");
-    t.update(ref, { situacao: "cancelado", justificativaCancelamento: justificativa.trim(), canceladoEm: FieldValue.serverTimestamp(), canceladoPorUid: s.uid, atualizadoEm: FieldValue.serverTimestamp() });
-    t.create(adminDb.collection(COL.auditoria).doc(), { acao: "elogio.cancelar", entidade: "elogio", entidadeId: id, autorUid: s.uid, autorEmail: s.email, em: FieldValue.serverTimestamp() });
   });
 }
 
 export async function editarElogio(id: string, campos: { titulo?: string; descricao?: string; destinatarioIds?: string[]; solicitanteId?: string; dataSolicitacao?: string; referencia?: string }) {
+  return executar(async () => {
   const s = await exigirSessao(); assertEquipe(s);
   if (campos.dataSolicitacao !== undefined && !isDataCivil(campos.dataSolicitacao)) throw new ErroValidacao("Data da solicitação inválida");
   if (campos.destinatarioIds !== undefined && !campos.destinatarioIds.length) throw new ErroValidacao("Selecione ao menos um destinatário");
@@ -217,19 +230,21 @@ export async function editarElogio(id: string, campos: { titulo?: string; descri
     assertPodeEditar(e, s.usuario.perfil, s.uid);
     const antes: Record<string, { antes?: unknown; depois?: unknown }> = {};
     const upd: Record<string, unknown> = { atualizadoEm: FieldValue.serverTimestamp() };
-    if (campos.titulo !== undefined) { upd.titulo = campos.titulo.trim(); antes.titulo = { antes: e.titulo, depois: upd.titulo }; }
-    if (campos.descricao !== undefined) { upd.descricao = campos.descricao.trim(); antes.descricao = { antes: e.descricao, depois: upd.descricao }; }
-    if (campos.destinatarioIds !== undefined) { upd.destinatarioIds = campos.destinatarioIds; antes.destinatarioIds = { antes: e.destinatarioIds, depois: upd.destinatarioIds }; }
-    if (campos.solicitanteId !== undefined) { upd.solicitanteId = campos.solicitanteId; antes.solicitanteId = { antes: e.solicitanteId, depois: upd.solicitanteId }; }
-    if (campos.dataSolicitacao !== undefined) { upd.dataSolicitacao = campos.dataSolicitacao; antes.dataSolicitacao = { antes: e.dataSolicitacao, depois: upd.dataSolicitacao }; }
-    if (campos.referencia !== undefined) { upd.referencia = campos.referencia.trim(); antes.referencia = { antes: e.referencia, depois: upd.referencia }; }
+    if (campos.titulo !== undefined) { upd.titulo = campos.titulo.trim(); antes.titulo = dif(e.titulo, upd.titulo); }
+    if (campos.descricao !== undefined) { upd.descricao = campos.descricao.trim(); antes.descricao = dif(e.descricao, upd.descricao); }
+    if (campos.destinatarioIds !== undefined) { upd.destinatarioIds = campos.destinatarioIds; antes.destinatarioIds = dif(e.destinatarioIds, upd.destinatarioIds); }
+    if (campos.solicitanteId !== undefined) { upd.solicitanteId = campos.solicitanteId; antes.solicitanteId = dif(e.solicitanteId, upd.solicitanteId); }
+    if (campos.dataSolicitacao !== undefined) { upd.dataSolicitacao = campos.dataSolicitacao; antes.dataSolicitacao = dif(e.dataSolicitacao, upd.dataSolicitacao); }
+    if (campos.referencia !== undefined) { upd.referencia = campos.referencia.trim(); antes.referencia = dif(e.referencia, upd.referencia); }
     t.update(ref, upd);
     t.create(adminDb.collection(COL.auditoria).doc(), { acao: "elogio.editar", entidade: "elogio", entidadeId: id, autorUid: s.uid, autorEmail: s.email, em: FieldValue.serverTimestamp(), campos: antes });
+  });
   });
 }
 
 /** Exclusão física do elogio (coleção do módulo), com snapshot completo em auditoria. */
 export async function excluirElogio(id: string) {
+  return executar(async () => {
   const s = await exigirSessao(); assertEquipe(s);
   const ref = adminDb.collection(COL.elogios).doc(id);
   await adminDb.runTransaction(async t => {
@@ -240,10 +255,12 @@ export async function excluirElogio(id: string) {
     t.delete(ref);
     t.create(adminDb.collection(COL.auditoria).doc(), { acao: "elogio.excluir", entidade: "elogio", entidadeId: id, autorUid: s.uid, autorEmail: s.email, em: FieldValue.serverTimestamp(), dadosAnteriores: d.data() });
   });
+  });
 }
 
 /** Correção de publicado/negado sem mudar a situação — só admin/gestor. */
 export async function corrigirElogio(id: string, campos: { titulo?: string; descricao?: string; dataSolicitacao?: string; dataPublicacao?: string; referencia?: string; justificativaNegativa?: string }) {
+  return executar(async () => {
   const s = await exigirSessao(); assertEquipe(s);
   assertPodeCorrigir(s.usuario.perfil);
   if (campos.dataSolicitacao !== undefined && !isDataCivil(campos.dataSolicitacao)) throw new ErroValidacao("Data da solicitação inválida");
@@ -258,7 +275,7 @@ export async function corrigirElogio(id: string, campos: { titulo?: string; desc
     const upd: Record<string, unknown> = { atualizadoEm: FieldValue.serverTimestamp() };
     for (const k of ["titulo", "descricao", "dataSolicitacao", "dataPublicacao", "referencia", "justificativaNegativa"] as const) {
       const v = campos[k];
-      if (v !== undefined) { upd[k] = typeof v === "string" ? v.trim() : v; camposAud[k] = { antes: e[k], depois: upd[k] }; }
+      if (v !== undefined) { upd[k] = typeof v === "string" ? v.trim() : v; camposAud[k] = dif(e[k], upd[k]); }
     }
     // Publicado não pode ficar sem data de publicação nem Boletim Interno Nº.
     if (e.situacao === "publicado") {
@@ -271,15 +288,20 @@ export async function corrigirElogio(id: string, campos: { titulo?: string; desc
       t.create(adminDb.collection(COL.auditoria).doc(), { acao: "elogio.corrigir", entidade: "elogio", entidadeId: id, autorUid: s.uid, autorEmail: s.email, em: FieldValue.serverTimestamp(), campos: camposAud });
     }
   });
+  });
 }
 
 // ---------- Mutações: láureas ----------
 export async function registrarLaurea(input: { integranteId: string; grau: string; dataConcessao: string; dataPublicacao?: string; referencia?: string; solicitanteId?: string; observacao?: string }) {
+  return executar(async () => {
   const s = await exigirPerfil("admin", "gestor"); assertEquipe(s);
   if (!isDataCivil(input.dataConcessao)) throw new ErroValidacao("Data da concessão inválida ou ausente");
   if (!["1º", "2º", "3º", "4º", "5º"].includes(input.grau)) throw new ErroValidacao("Grau inválido");
+  if (!input.integranteId) throw new ErroValidacao("Selecione o integrante");
   const ref = adminDb.collection(COL.laureas).doc();
   await adminDb.runTransaction(async t => {
+    const m = await t.get(adminDb.collection(COL.membros).doc(input.integranteId));
+    if (!m.exists) throw new ErroValidacao("Integrante não encontrado");
     t.create(ref, {
       equipeId: EQUIPE, integranteId: input.integranteId, grau: input.grau,
       dataConcessao: input.dataConcessao, dataPublicacao: input.dataPublicacao ?? null,
@@ -289,9 +311,11 @@ export async function registrarLaurea(input: { integranteId: string; grau: strin
     t.create(adminDb.collection(COL.auditoria).doc(), { acao: "laurea.registrar", entidade: "laurea", entidadeId: ref.id, autorUid: s.uid, autorEmail: s.email, em: FieldValue.serverTimestamp() });
   });
   return { id: ref.id };
+  });
 }
 
 export async function editarLaurea(id: string, campos: { integranteId?: string; grau?: string; dataConcessao?: string; dataPublicacao?: string; referencia?: string; solicitanteId?: string; observacao?: string }) {
+  return executar(async () => {
   const s = await exigirPerfil("admin", "gestor"); assertEquipe(s);
   if (campos.dataConcessao !== undefined && !isDataCivil(campos.dataConcessao)) throw new ErroValidacao("Data da concessão inválida ou ausente");
   if (campos.dataPublicacao !== undefined && campos.dataPublicacao !== "" && !isDataCivil(campos.dataPublicacao)) throw new ErroValidacao("Data de publicação inválida");
@@ -305,16 +329,27 @@ export async function editarLaurea(id: string, campos: { integranteId?: string; 
     const upd: Record<string, unknown> = {};
     for (const k of ["integranteId", "grau", "dataConcessao", "dataPublicacao", "referencia", "solicitanteId", "observacao"] as const) {
       const v = campos[k];
-      if (v !== undefined) { upd[k] = typeof v === "string" ? v.trim() : v; camposAud[k] = { antes: l[k], depois: upd[k] }; }
+      if (v === undefined) continue;
+      // dataPublicacao/solicitanteId: "" limpa (grava null); textos gravam "".
+      const val: unknown = (k === "dataPublicacao" || k === "solicitanteId") && v === "" ? null : typeof v === "string" ? v.trim() : v;
+      upd[k] = val;
+      camposAud[k] = dif(l[k], val);
+    }
+    if (upd.integranteId !== undefined) {
+      if (!upd.integranteId) throw new ErroValidacao("Selecione o integrante");
+      const m = await t.get(adminDb.collection(COL.membros).doc(upd.integranteId as string));
+      if (!m.exists) throw new ErroValidacao("Integrante não encontrado");
     }
     if (!Object.keys(upd).length) return;
     t.update(ref, upd);
     t.create(adminDb.collection(COL.auditoria).doc(), { acao: "laurea.editar", entidade: "laurea", entidadeId: id, autorUid: s.uid, autorEmail: s.email, em: FieldValue.serverTimestamp(), campos: camposAud });
   });
+  });
 }
 
 /** Exclusão física da láurea (coleção do módulo), com snapshot completo em auditoria. */
 export async function excluirLaurea(id: string) {
+  return executar(async () => {
   const s = await exigirPerfil("admin", "gestor"); assertEquipe(s);
   const ref = adminDb.collection(COL.laureas).doc(id);
   await adminDb.runTransaction(async t => {
@@ -323,10 +358,12 @@ export async function excluirLaurea(id: string) {
     t.delete(ref);
     t.create(adminDb.collection(COL.auditoria).doc(), { acao: "laurea.excluir", entidade: "laurea", entidadeId: id, autorUid: s.uid, autorEmail: s.email, em: FieldValue.serverTimestamp(), dadosAnteriores: d.data() });
   });
+  });
 }
 
 // ---------- Administração ----------
 export async function definirUsuario(uid: string, dados: { integranteId?: string; perfil: Perfil; ativo: boolean }) {
+  return executar(async () => {
   const s = await exigirPerfil("admin"); assertEquipe(s);
   if (!["admin", "gestor", "editor", "visualizador"].includes(dados.perfil)) throw new ErroValidacao("Perfil inválido");
   const atual = await db.buscarUsuario(uid);
@@ -341,7 +378,8 @@ export async function definirUsuario(uid: string, dados: { integranteId?: string
     atualizadoEm: FieldValue.serverTimestamp(), atualizadoPorUid: s.uid,
     ...(atual ? {} : { criadoEm: FieldValue.serverTimestamp(), criadoPor: s.uid }),
   }, { merge: true });
-  await db.auditar({ acao: "usuario.definir", entidade: "moduloUsuario", entidadeId: uid, autorUid: s.uid, autorEmail: s.email, campos: { perfil: { antes: atual?.perfil, depois: dados.perfil }, ativo: { antes: atual?.ativo, depois: dados.ativo } } });
+  await db.auditar({ acao: "usuario.definir", entidade: "moduloUsuario", entidadeId: uid, autorUid: s.uid, autorEmail: s.email, campos: { perfil: dif(atual?.perfil, dados.perfil), ativo: dif(atual?.ativo, dados.ativo) } });
+  });
 }
 
 export async function listarUsuariosAdmin() {
@@ -351,6 +389,7 @@ export async function listarUsuariosAdmin() {
 
 // ---------- Importação assistida ----------
 export async function importarPlanilha(base64: string, nomeArquivo: string, modo: "simulacao" | "gravacao", resolucao?: { criarNaoEncontrados: boolean }) {
+  return executar(async () => {
   const s = await exigirPerfil("admin"); assertEquipe(s);
   const buf = Buffer.from(base64, "base64");
   if (buf.length > 5 * 1024 * 1024) throw new ErroValidacao("Arquivo muito grande (máx. 5 MB)");
@@ -399,6 +438,7 @@ export async function importarPlanilha(base64: string, nomeArquivo: string, modo
   batch.create(adminDb.collection(COL.auditoria).doc(), { acao: "importacao.executar", entidade: "importacao", entidadeId: impRef.id, autorUid: s.uid, autorEmail: s.email, em: FieldValue.serverTimestamp() });
   await batch.commit();
   return { modo, ...rel, aplicados, criados };
+  });
 }
 
 // ---------- Efetivo (admin/gestor) — `membros` é o cadastro mestre do legado ----------
@@ -407,14 +447,13 @@ export async function importarPlanilha(base64: string, nomeArquivo: string, modo
 // com 0 e jamais tocados depois.
 const GRADUACOES = ["CAP PM", "1º TEN PM", "2º TEN PM", "SUBTEN PM", "1º SGT PM", "2º SGT PM", "3º SGT PM", "CB PM", "SD PM"];
 
-export async function criarMembro(input: { re: string; nome: string; graduacao: string; nomeGuerra?: string; ingressoEquipe?: string; ingressoPM?: string; cnh?: string; sat?: string }) {
+export async function criarMembro(input: { re: string; nome: string; graduacao: string; nomeGuerra?: string; ingressoEquipe?: string; ingressoPM?: string; cnh?: string; sat?: string; medalhaRecebida?: string; medalhaRecebidaEm?: string }) {
+  return executar(async () => {
   const s = await exigirPerfil("admin", "gestor"); assertEquipe(s);
   const re = input.re?.trim(), nome = input.nome?.trim();
   if (!re) throw new ErroValidacao("RE obrigatório");
   if (!nome) throw new ErroValidacao("Nome obrigatório");
   if (!GRADUACOES.includes(input.graduacao)) throw new ErroValidacao("Graduação inválida");
-  if (input.ingressoEquipe && !isDataCivil(input.ingressoEquipe)) throw new ErroValidacao("Data de ingresso na equipe inválida");
-  if (input.ingressoPM && !isDataCivil(input.ingressoPM)) throw new ErroValidacao("Data de ingresso na PM inválida");
 
   const ref = adminDb.collection(COL.membros).doc();
   const compRef = adminDb.collection(COL.complementos).doc(ref.id);
@@ -422,26 +461,17 @@ export async function criarMembro(input: { re: string; nome: string; graduacao: 
     const dup = await t.get(adminDb.collection(COL.membros).where("re", "==", re).limit(1));
     if (!dup.empty) throw new ErroValidacao("RE já cadastrado");
     t.create(ref, { re, nome, posto_grad: input.graduacao, pago_semestre_1: 0, pago_semestre_2: 0 });
-    const pendentes: string[] = [];
-    if (!input.ingressoEquipe) pendentes.push("ingressoEquipe");
-    if (!input.ingressoPM) pendentes.push("ingressoPM");
-    const comp: Record<string, unknown> = { integranteId: ref.id, situacaoEquipe: "ativo", camposPendentes: pendentes, schemaVersion: 1 };
-    if (input.nomeGuerra?.trim()) comp.nomeGuerra = input.nomeGuerra.trim();
-    if (input.ingressoEquipe) comp.ingressoEquipe = input.ingressoEquipe;
-    if (input.ingressoPM) comp.ingressoPM = input.ingressoPM;
-    const cnh = normalizarCategoria(input.cnh), sat = normalizarSat(input.sat);
-    if (cnh) comp.cnh = cnh; // vazio = sem informação; não grava
-    if (sat) comp.sat = sat;
-    t.create(compRef, comp);
+    const { upd, pendentes } = montarAtualizacaoComplemento(input, {}, hojeSP());
+    t.create(compRef, { integranteId: ref.id, situacaoEquipe: "ativo", ...upd, camposPendentes: pendentes, schemaVersion: 1 });
     t.create(adminDb.collection(COL.auditoria).doc(), { acao: "membro.criar", entidade: "membro", entidadeId: ref.id, autorUid: s.uid, autorEmail: s.email, em: FieldValue.serverTimestamp() });
   });
   return { id: ref.id };
+  });
 }
 
-export async function editarMembro(id: string, dados: { re?: string; nome?: string; graduacao?: string; nomeGuerra?: string; ingressoEquipe?: string; ingressoPM?: string; situacaoEquipe?: string; cnh?: string; sat?: string }) {
+export async function editarMembro(id: string, dados: { re?: string; nome?: string; graduacao?: string; nomeGuerra?: string; ingressoEquipe?: string; ingressoPM?: string; situacaoEquipe?: string; cnh?: string; sat?: string; medalhaRecebida?: string; medalhaRecebidaEm?: string }) {
+  return executar(async () => {
   const s = await exigirPerfil("admin", "gestor"); assertEquipe(s);
-  if (dados.ingressoEquipe && !isDataCivil(dados.ingressoEquipe)) throw new ErroValidacao("Data de ingresso na equipe inválida");
-  if (dados.ingressoPM && !isDataCivil(dados.ingressoPM)) throw new ErroValidacao("Data de ingresso na PM inválida");
   if (dados.graduacao !== undefined && !GRADUACOES.includes(dados.graduacao)) throw new ErroValidacao("Graduação inválida");
 
   const ref = adminDb.collection(COL.membros).doc(id);
@@ -457,37 +487,25 @@ export async function editarMembro(id: string, dados: { re?: string; nome?: stri
     if (dados.re?.trim() && dados.re.trim() !== antes.re) {
       const dup = await t.get(adminDb.collection(COL.membros).where("re", "==", dados.re.trim()).limit(1));
       if (!dup.empty && dup.docs[0].id !== id) throw new ErroValidacao("RE já cadastrado");
-      updMestre.re = dados.re.trim(); campos.re = { antes: antes.re, depois: updMestre.re };
+      updMestre.re = dados.re.trim(); campos.re = dif(antes.re, updMestre.re);
     }
-    if (dados.nome?.trim() && dados.nome.trim() !== antes.nome) { updMestre.nome = dados.nome.trim(); campos.nome = { antes: antes.nome, depois: updMestre.nome }; }
-    if (dados.graduacao && dados.graduacao !== antes.posto_grad) { updMestre.posto_grad = dados.graduacao; campos.posto_grad = { antes: antes.posto_grad, depois: dados.graduacao }; }
+    if (dados.nome?.trim() && dados.nome.trim() !== antes.nome) { updMestre.nome = dados.nome.trim(); campos.nome = dif(antes.nome, updMestre.nome); }
+    if (dados.graduacao && dados.graduacao !== antes.posto_grad) { updMestre.posto_grad = dados.graduacao; campos.posto_grad = dif(antes.posto_grad, dados.graduacao); }
     if (Object.keys(updMestre).length) t.update(ref, updMestre); // nunca toca pago_* nem remove campos
 
-    const updComp: Record<string, unknown> = {};
-    for (const k of ["nomeGuerra", "ingressoEquipe", "ingressoPM", "situacaoEquipe"] as const) {
-      const v = dados[k];
-      if (v !== undefined && v !== "" && v !== compAntes[k]) { updComp[k] = v; campos[k] = { antes: compAntes[k], depois: v }; }
-    }
-    // CNH/SAT: vazio EXPLÍCITO grava "" — admin/gestor pode limpar manualmente.
-    for (const k of ["cnh", "sat"] as const) {
-      if (dados[k] === undefined) continue;
-      const normalizar = k === "sat" ? normalizarSat : normalizarCategoria;
-      const v = normalizar(dados[k]);
-      if (v !== normalizar(compAntes[k])) { updComp[k] = v; campos[k] = { antes: compAntes[k], depois: v }; }
-    }
-    const final = { ...compAntes, ...updComp };
-    const pendentes: string[] = [];
-    if (!final.ingressoEquipe) pendentes.push("ingressoEquipe");
-    if (!final.ingressoPM) pendentes.push("ingressoPM");
+    const { upd: updComp, campos: camposComp, pendentes } = montarAtualizacaoComplemento(dados, compAntes, hojeSP());
+    Object.assign(campos, camposComp);
     if (!c.exists) { updComp.integranteId = id; updComp.schemaVersion = 1; }
     t.set(compRef, { ...updComp, camposPendentes: pendentes }, { merge: true });
     if (Object.keys(campos).length) {
       t.create(adminDb.collection(COL.auditoria).doc(), { acao: "membro.editar", entidade: "membro", entidadeId: id, autorUid: s.uid, autorEmail: s.email, em: FieldValue.serverTimestamp(), campos });
     }
   });
+  });
 }
 
 export async function excluirMembro(id: string, motivo?: string) {
+  return executar(async () => {
   const s = await exigirPerfil("admin", "gestor"); assertEquipe(s);
   const ref = adminDb.collection(COL.membros).doc(id);
   const compRef = adminDb.collection(COL.complementos).doc(id);
@@ -500,35 +518,14 @@ export async function excluirMembro(id: string, motivo?: string) {
     t.set(compRef, exc, { merge: true });
     t.create(adminDb.collection(COL.auditoria).doc(), { acao: "membro.excluir-logico", entidade: "membro", entidadeId: id, autorUid: s.uid, autorEmail: s.email, em: FieldValue.serverTimestamp(), campos: { situacaoEquipe: { depois: "excluido" }, ...(motivo?.trim() ? { motivoExclusao: { depois: motivo.trim() } } : {}) } });
   });
-}
-
-// ---------- Complemento cadastral (admin) ----------
-export async function salvarComplemento(integranteId: string, dados: { ingressoEquipe?: string; ingressoPM?: string; nomeGuerra?: string; funcao?: string; situacaoEquipe?: string; cnh?: string; sat?: string }) {
-  const s = await exigirPerfil("admin", "gestor"); assertEquipe(s);
-  if (dados.ingressoEquipe && !isDataCivil(dados.ingressoEquipe)) throw new ErroValidacao("Data de ingresso inválida");
-  if (dados.ingressoPM && !isDataCivil(dados.ingressoPM)) throw new ErroValidacao("Data de ingresso na PM inválida");
-  const pendentes: string[] = [];
-  if (!dados.ingressoEquipe) pendentes.push("ingressoEquipe");
-  if (!dados.ingressoPM) pendentes.push("ingressoPM");
-  const atual = await db.complementoDe(integranteId);
-  // merge parcial: campos ausentes ficam ausentes; vazios não limpam valores conhecidos
-  const limpo = Object.fromEntries(Object.entries(dados).filter(([k, v]) => v !== undefined && v !== "" && k !== "cnh" && k !== "sat"));
-  // CNH/SAT: vazio EXPLÍCITO grava "" — limpeza manual permitida.
-  const camposAud: Record<string, { antes?: unknown; depois?: unknown }> = {};
-  for (const k of ["cnh", "sat"] as const) {
-    if (dados[k] === undefined) continue;
-    const normalizar = k === "sat" ? normalizarSat : normalizarCategoria;
-    const v = normalizar(dados[k]);
-    if (v !== normalizar(atual?.[k])) { limpo[k] = v; camposAud[k] = { antes: atual?.[k], depois: v }; }
-  }
-  await adminDb.collection(COL.complementos).doc(integranteId).set({ integranteId, ...limpo, camposPendentes: pendentes, schemaVersion: 1 }, { merge: true });
-  await db.auditar({ acao: "complemento.salvar", entidade: "efetivoComplemento", entidadeId: integranteId, autorUid: s.uid, autorEmail: s.email, ...(Object.keys(camposAud).length ? { campos: camposAud } : {}) });
+  });
 }
 
 // ---------- Importação de habilitações (CNH/SAT) ----------
 // Nunca escreve em `membros`: só atualiza `efetivoComplementos` (merge) com as
 // categorias preenchidas que divergem do cadastro. Célula vazia nunca limpa.
 export async function importarHabilitacoes(base64: string, nomeArquivo: string, modo: "simulacao" | "gravacao", hashRevisado?: string) {
+  return executar(async () => {
   const s = await exigirPerfil("admin"); assertEquipe(s);
   if (modo !== "simulacao" && modo !== "gravacao") throw new ErroValidacao("Modo inválido");
   const buf = Buffer.from(base64, "base64");
@@ -577,4 +574,5 @@ export async function importarHabilitacoes(base64: string, nomeArquivo: string, 
   batch.create(adminDb.collection(COL.auditoria).doc(), { acao: "importacao.habilitacoes", entidade: "importacao", entidadeId: impRef.id, autorUid: s.uid, autorEmail: s.email, em: FieldValue.serverTimestamp() });
   await batch.commit();
   return { modo, ...rel, aplicados };
+  });
 }

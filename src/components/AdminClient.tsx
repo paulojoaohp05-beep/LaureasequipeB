@@ -1,6 +1,9 @@
 "use client";
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { definirUsuario, importarPlanilha, importarHabilitacoes } from "@/server/actions";
+import { desembrulhar } from "@/lib/acao";
+import { arquivoParaBase64 } from "@/lib/arquivo";
 import type { Integrante, UsuarioModulo } from "@/lib/types";
 
 export function AdminClient({ usuarios, integrantes }: { usuarios: UsuarioModulo[]; integrantes: Integrante[] }) {
@@ -28,17 +31,19 @@ export function AdminClient({ usuarios, integrantes }: { usuarios: UsuarioModulo
 function Usuarios({ usuarios, integrantes }: { usuarios: UsuarioModulo[]; integrantes: Integrante[] }) {
   const [erro, setErro] = useState("");
   const [pending, start] = useTransition();
+  const router = useRouter();
   const nomes = new Map(integrantes.map(i => [i.id, i.nomeGuerra || i.nome]));
 
   function salvar(fd: FormData) {
     setErro("");
     start(async () => {
       try {
-        await definirUsuario(String(fd.get("uid")), {
+        desembrulhar(await definirUsuario(String(fd.get("uid")), {
           perfil: fd.get("perfil") as "admin" | "gestor" | "editor" | "visualizador",
           ativo: fd.get("ativo") === "on",
           integranteId: String(fd.get("integrante") ?? "") || undefined,
-        });
+        }));
+        router.refresh();
       } catch (e) { setErro(e instanceof Error ? e.message : "Erro"); }
     });
   }
@@ -57,7 +62,7 @@ function Usuarios({ usuarios, integrantes }: { usuarios: UsuarioModulo[]; integr
                 <td className="px-3 py-2">{u.integranteId ? nomes.get(u.integranteId) ?? u.integranteId : "—"}</td>
                 <td className="px-3 py-2">{u.perfil}</td>
                 <td className="px-3 py-2">{u.ativo ? "sim" : "não"}</td>
-                <td className="px-3 py-2"><Detalhes u={u} integrantes={integrantes} onSalvar={salvar} pending={pending} /></td>
+                <td className="px-3 py-2"><Detalhes u={u} onSalvar={salvar} pending={pending} /></td>
               </tr>
             ))}
           </tbody>
@@ -87,7 +92,7 @@ function Usuarios({ usuarios, integrantes }: { usuarios: UsuarioModulo[]; integr
   );
 }
 
-function Detalhes({ u, integrantes, onSalvar, pending }: { u: UsuarioModulo; integrantes: Integrante[]; onSalvar: (fd: FormData) => void; pending: boolean }) {
+function Detalhes({ u, onSalvar, pending }: { u: UsuarioModulo; onSalvar: (fd: FormData) => void; pending: boolean }) {
   return (
     <form action={onSalvar} className="flex flex-wrap items-center gap-2">
       <input type="hidden" name="uid" value={u.uid} />
@@ -111,10 +116,9 @@ function Importacao() {
   async function enviar(modo: "simulacao" | "gravacao") {
     if (!arquivo) { setErro("Selecione a planilha .xlsx"); return; }
     setErro("");
-    const b64 = Buffer.from(await arquivo.arrayBuffer()).toString("base64");
     start(async () => {
       try {
-        const r = await importarPlanilha(b64, arquivo.name, modo, { criarNaoEncontrados: criar });
+        const r = desembrulhar(await importarPlanilha(await arquivoParaBase64(arquivo), arquivo.name, modo, { criarNaoEncontrados: criar }));
         setRel(r as Record<string, unknown>);
       } catch (e) { setErro(e instanceof Error ? e.message : "Erro na importação"); }
     });
@@ -168,10 +172,7 @@ function ImportacaoHabilitacoes() {
     start(async () => {
       try {
         if (arquivo.size > 5 * 1024 * 1024) throw new Error("Arquivo muito grande (máx. 5 MB)");
-        const bytes = new Uint8Array(await arquivo.arrayBuffer());
-        let binario = "";
-        for (let i = 0; i < bytes.length; i += 8192) binario += String.fromCharCode(...bytes.subarray(i, i + 8192));
-        const r = await importarHabilitacoes(btoa(binario), arquivo.name, modo, modo === "gravacao" ? rel?.hashPlano : undefined);
+        const r = desembrulhar(await importarHabilitacoes(await arquivoParaBase64(arquivo), arquivo.name, modo, modo === "gravacao" ? rel?.hashPlano : undefined));
         setRel(r);
       } catch (e) { setRel(null); setErro(e instanceof Error ? e.message : "Erro na importação"); }
     });

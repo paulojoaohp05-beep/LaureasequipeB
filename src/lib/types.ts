@@ -2,6 +2,8 @@
 
 export type Perfil = "admin" | "gestor" | "editor" | "visualizador";
 
+export type GrauMedalha = "bronze" | "prata" | "ouro";
+
 export type SituacaoIntegrante = "ativo" | "afastado" | "transferido" | "reserva";
 
 /** Cadastro mestre do integrante (fonte única, adaptável ao Firebase real). */
@@ -30,6 +32,8 @@ export interface ComplementoEfetivo {
   situacaoEquipe?: string;
   cnh?: string;
   sat?: string;
+  medalhaRecebida?: GrauMedalha | ""; // informada manualmente; ""/ausente = nenhuma
+  medalhaRecebidaEm?: string; // AAAA-MM-DD opcional
   excluidoEm?: string;
   excluidoPorUid?: string;
   motivoExclusao?: string;

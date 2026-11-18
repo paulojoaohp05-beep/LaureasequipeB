@@ -1,7 +1,8 @@
 // Firebase Admin SDK — EXCLUSIVO ao servidor. Nunca importar em componentes de cliente.
 import "server-only";
 import { getApps, initializeApp, cert, applicationDefault } from "firebase-admin/app";
-import { getFirestore } from "firebase-admin/firestore";
+import { initializeFirestore } from "firebase-admin/firestore";
+import { FIRESTORE_SETTINGS } from "./settings";
 import { getAuth } from "firebase-admin/auth";
 
 function init() {
@@ -20,5 +21,13 @@ function init() {
 }
 
 const adminApp = init();
-export const adminDb = getFirestore(adminApp);
+// Cache no globalThis: o HMR do dev reavalia o módulo e initializeFirestore
+// não pode ser chamado duas vezes para o mesmo app/banco.
+const g = globalThis as { __adminDb?: FirebaseFirestore.Firestore };
+export const adminDb = g.__adminDb ??= (() => {
+  // initializeFirestore não repassa ignoreUndefinedProperties; vai via settings().
+  const db = initializeFirestore(adminApp);
+  db.settings(FIRESTORE_SETTINGS);
+  return db;
+})();
 export const adminAuth = getAuth(adminApp);

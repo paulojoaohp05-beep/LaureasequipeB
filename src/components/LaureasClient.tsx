@@ -5,6 +5,7 @@ import { registrarLaurea, editarLaurea, excluirLaurea } from "@/server/actions";
 import { IntegrantePicker } from "./IntegrantePicker";
 import { ConfirmarExclusao } from "./ConfirmarExclusao";
 import { formatBR } from "@/lib/dates";
+import { desembrulhar } from "@/lib/acao";
 import type { Integrante, Laurea, Perfil } from "@/lib/types";
 
 export function LaureasClient({ laureas, integrantes, perfil }: { laureas: Laurea[]; integrantes: Integrante[]; perfil: Perfil }) {
@@ -22,7 +23,7 @@ export function LaureasClient({ laureas, integrantes, perfil }: { laureas: Laure
   function excluir() {
     if (!excluindo) return;
     start(async () => {
-      try { await excluirLaurea(excluindo.id); setExcluindo(null); router.refresh(); }
+      try { desembrulhar(await excluirLaurea(excluindo.id)); setExcluindo(null); router.refresh(); }
       catch (e) { setErro(e instanceof Error ? e.message : "Erro"); }
     });
   }
@@ -37,8 +38,14 @@ export function LaureasClient({ laureas, integrantes, perfil }: { laureas: Laure
     };
     start(async () => {
       try {
-        if (editando) await editarLaurea(editando.id, campos);
-        else await registrarLaurea(campos);
+        if (editando) {
+          // "" limpa os campos opcionais na edição
+          desembrulhar(await editarLaurea(editando.id, {
+            ...campos,
+            dataPublicacao: String(fd.get("dataPublicacao") ?? ""), referencia: String(fd.get("referencia") ?? ""),
+            solicitanteId: String(fd.get("solicitante") ?? ""), observacao: String(fd.get("observacao") ?? ""),
+          }));
+        } else desembrulhar(await registrarLaurea(campos));
         setForm(null);
         router.refresh();
       } catch (e) { setErro(e instanceof Error ? e.message : "Erro ao registrar"); }

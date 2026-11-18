@@ -3,7 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { exigirSessao } from "@/server/session";
 import * as db from "@/server/db";
 import { xlsxEfetivo, xlsxElogios, xlsxLaureas, xlsxParticipacao } from "@/lib/export";
-import { periodoBounds, dentroPeriodo } from "@/lib/dates";
+import { periodoBounds, dentroPeriodo, hojeSP } from "@/lib/dates";
+import { calcularMedalha } from "@/lib/medalha";
 import { ErroPermissao } from "@/lib/elogios";
 
 const EQUIPE = "equipe-b";
@@ -21,10 +22,11 @@ export async function GET(req: NextRequest) {
 
     const integrantes = await db.listarIntegrantes();
     const nomes = new Map(integrantes.map(i => [i.id, i.nomeGuerra || i.nome]));
-    let buf: Buffer; let nome = `${tipo}.xlsx`;
+    let buf: Buffer; const nome = `${tipo}.xlsx`;
 
     if (tipo === "efetivo") {
-      const comp = integrantes.map(i => ({ ...i, ingressoEquipe: i.complemento?.ingressoEquipe, cnh: i.complemento?.cnh, sat: i.complemento?.sat }));
+      const hoje = hojeSP();
+      const comp = integrantes.map(i => ({ ...i, ingressoEquipe: i.complemento?.ingressoEquipe, cnh: i.complemento?.cnh, sat: i.complemento?.sat, medalha: calcularMedalha(i.ingressoPM, i.complemento?.medalhaRecebida, i.complemento?.medalhaRecebidaEm, hoje) }));
       buf = await xlsxEfetivo(comp, filtros);
     } else if (tipo === "elogios") {
       const todos = await db.listarElogios(EQUIPE);

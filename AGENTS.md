@@ -14,3 +14,5 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - CNH/SAT: vincular somente por RE-base + primeiro nome normalizado, tolerando dígito divergente. Não usar nome completo como fallback sem autorização.
 - `A/B` equivale a `AB`; `***` indica SAT não possuído (`NÃO POSSUI`), diferente de célula vazia, que não apaga informação existente.
 - Não alterar pagamentos. Não executar importações sem revisão prévia da simulação.
+- Mutações chamadas por clientes retornam `Resultado` via `executar()` (servidor) e `desembrulhar()` (cliente) — erros lançados em produção não exibem mensagem.
+- Medalha Valor Militar: ingresso na PM + 10/20/30 anos (bronze/prata/ouro); prazo conta-se pelo CC art. 132 §3º (dia de igual número; inexistente → dia seguinte).

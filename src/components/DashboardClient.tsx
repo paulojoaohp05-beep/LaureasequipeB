@@ -134,6 +134,17 @@ export function DashboardClient({ dados, filtro }: { dados: Dados; filtro: Filtr
         </section>
 
         <section className="break-inside-avoid rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
+          <h2 className="mb-3 font-semibold text-[#1f3a5f] dark:text-[#8fb3e6]">Medalha Valor Militar</h2>
+          <ul className="text-sm">
+            <li>Faz jus a Bronze: {dados.medalhas.bronze}</li>
+            <li>Faz jus a Prata: {dados.medalhas.prata}</li>
+            <li>Faz jus a Ouro: {dados.medalhas.ouro}</li>
+            <li className="mt-2">Pendentes de recebimento: {dados.medalhas.pendentes}</li>
+            <li className="text-slate-600 dark:text-slate-400">Ingresso na PM não informado: {dados.medalhas.semData}</li>
+          </ul>
+        </section>
+
+        <section className="break-inside-avoid rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
           <h2 className="mb-3 font-semibold text-[#1f3a5f] dark:text-[#8fb3e6]">Distribuição por grau de láurea</h2>
           <ul className="text-sm">
             {Object.entries(dados.distribuicao).map(([g, n]) => <li key={g}>{g} grau: {n}</li>)}

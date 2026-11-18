@@ -1,16 +1,21 @@
 import { notFound, redirect } from "next/navigation";
 import { obterFicha } from "@/server/actions";
+import { sessaoAtual } from "@/server/session";
 import { formatBR, anosEntre, hojeSP } from "@/lib/dates";
+import { ROTULO_GRAU } from "@/lib/medalha";
+import { MedalhaBadge } from "@/components/MedalhaBadge";
 
 export const dynamic = "force-dynamic";
 
 export default async function FichaPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  let f;
-  try { f = await obterFicha(id); } catch { redirect("/login"); }
+  const s = await sessaoAtual();
+  if (!s || !s.usuario.ativo) redirect("/login");
+  const f = await obterFicha(id);
   if (!f) notFound();
-  const { integrante: i, complemento, laureas, elogios } = f;
+  const { integrante: i, complemento, laureas, elogios, medalha } = f;
   const ingresso = complemento?.ingressoEquipe;
+  const tempo = medalha.tempo;
 
   return (
     <div className="flex flex-col gap-6">
@@ -32,6 +37,21 @@ export default async function FichaPage({ params }: { params: Promise<{ id: stri
           <div><dt className="text-slate-500 dark:text-slate-400">CNH</dt><dd>{complemento?.cnh || "—"}</dd></div>
           <div><dt className="text-slate-500 dark:text-slate-400">SAT</dt><dd>{complemento?.sat || "—"}</dd></div>
         </dl>
+      </section>
+
+      <section className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+        <h2 className="mb-3 font-semibold text-[#1f3a5f] dark:text-[#8fb3e6]">Medalha Valor Militar</h2>
+        {!tempo ? (
+          <p className="text-sm text-slate-500 dark:text-slate-400">Informe a data de ingresso na PM para calcular.</p>
+        ) : (
+          <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm md:grid-cols-3">
+            <div><dt className="text-slate-500 dark:text-slate-400">Tempo de serviço</dt><dd>{`${tempo.anos} anos, ${tempo.meses} meses e ${tempo.dias} dias`}</dd></div>
+            <div><dt className="text-slate-500 dark:text-slate-400">Faz jus a</dt><dd>{medalha.devida ? ROTULO_GRAU[medalha.devida] : "—"}</dd></div>
+            <div><dt className="text-slate-500 dark:text-slate-400">Recebida</dt><dd>{medalha.recebida ? `${ROTULO_GRAU[medalha.recebida]}${medalha.recebidaEm ? ` (${formatBR(medalha.recebidaEm)})` : ""}` : "—"}</dd></div>
+            <div><dt className="text-slate-500 dark:text-slate-400">Situação</dt><dd><MedalhaBadge situacao={medalha.situacao} /></dd></div>
+            <div><dt className="text-slate-500 dark:text-slate-400">Próxima graduação</dt><dd>{medalha.proxima ? `${ROTULO_GRAU[medalha.proxima.grau]} em ${formatBR(medalha.proxima.data)}` : "—"}</dd></div>
+          </dl>
+        )}
       </section>
 
       <section className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">

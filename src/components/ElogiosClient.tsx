@@ -4,7 +4,8 @@ import { useRouter } from "next/navigation";
 import { criarElogio, editarElogio, corrigirElogio, publicarElogio, negarElogio, excluirElogio } from "@/server/actions";
 import { IntegrantePicker } from "./IntegrantePicker";
 import { ConfirmarExclusao } from "./ConfirmarExclusao";
-import { formatBR } from "@/lib/dates";
+import { formatBR, isDataCivil, parseBR } from "@/lib/dates";
+import { desembrulhar } from "@/lib/acao";
 import type { Elogio, Integrante, Perfil } from "@/lib/types";
 
 type Form = { modo: "novo" } | { modo: "editar" | "corrigir"; e: Elogio };
@@ -35,47 +36,50 @@ export function ElogiosClient({ elogios, integrantes, perfil }: { elogios: Elogi
       try {
         if (!form) return;
         if (form.modo === "novo") {
-          await criarElogio({
+          desembrulhar(await criarElogio({
             ...base,
             destinatarioIds: fd.getAll("destinatarios") as string[],
             solicitanteId: String(fd.get("solicitante") ?? ""),
             jaPublicado: fd.get("jaPublicado") === "on",
             dataPublicacao: String(fd.get("dataPublicacao") ?? ""),
-          });
+          }));
         } else if (form.modo === "editar") {
-          await editarElogio(form.e.id, {
+          desembrulhar(await editarElogio(form.e.id, {
             ...base,
             destinatarioIds: fd.getAll("destinatarios") as string[],
             solicitanteId: String(fd.get("solicitante") ?? ""),
-          });
+          }));
         } else {
-          await corrigirElogio(form.e.id, {
+          desembrulhar(await corrigirElogio(form.e.id, {
             ...base,
             dataPublicacao: String(fd.get("dataPublicacao") ?? "") || undefined,
             justificativaNegativa: String(fd.get("justificativaNegativa") ?? "") || undefined,
-          });
+          }));
         }
         setForm(null);
         setJaPublicado(false);
+        router.refresh();
       } catch (e) { setErro(e instanceof Error ? e.message : "Erro ao registrar"); }
     });
   }
 
   function publicar(id: string) {
-    const dataPublicacao = prompt("Data de publicação (AAAA-MM-DD):") ?? "";
+    const entrada = prompt("Data de publicação (dd/mm/aaaa):") ?? "";
     const referencia = prompt("Boletim Interno Nº:") ?? "";
-    if (!dataPublicacao || !referencia) return;
-    start(async () => { try { await publicarElogio(id, { dataPublicacao, referencia }); } catch (e) { setErro(e instanceof Error ? e.message : "Erro"); } });
+    if (!entrada || !referencia) return;
+    const dataPublicacao = parseBR(entrada) ?? (isDataCivil(entrada.trim()) ? entrada.trim() : undefined);
+    if (!dataPublicacao) { setErro("Data de publicação inválida — use dd/mm/aaaa."); return; }
+    start(async () => { try { desembrulhar(await publicarElogio(id, { dataPublicacao, referencia })); router.refresh(); } catch (e) { setErro(e instanceof Error ? e.message : "Erro"); } });
   }
   function negar(id: string) {
     const j = prompt("Justificativa da negativa:") ?? "";
     if (!j.trim()) return;
-    start(async () => { try { await negarElogio(id, j); } catch (e) { setErro(e instanceof Error ? e.message : "Erro"); } });
+    start(async () => { try { desembrulhar(await negarElogio(id, j)); router.refresh(); } catch (e) { setErro(e instanceof Error ? e.message : "Erro"); } });
   }
   function excluir() {
     if (!excluindo) return;
     start(async () => {
-      try { await excluirElogio(excluindo.id); setExcluindo(null); router.refresh(); }
+      try { desembrulhar(await excluirElogio(excluindo.id)); setExcluindo(null); router.refresh(); }
       catch (e) { setErro(e instanceof Error ? e.message : "Erro"); }
     });
   }

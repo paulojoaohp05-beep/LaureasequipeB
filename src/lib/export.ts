@@ -1,6 +1,8 @@
 // Geração de arquivos Excel .xlsx reais (exceljs) — somente servidor.
 import ExcelJS from "exceljs";
 import { formatBR } from "./dates";
+import { ROTULO_GRAU, ROTULO_SITUACAO } from "./medalha";
+import type { StatusMedalha } from "./medalha";
 import type { Elogio, Integrante, Laurea } from "./types";
 
 /** Evita injeção de fórmula: conteúdo do usuário nunca começa com = + - @ */
@@ -20,11 +22,11 @@ function meta(ws: ExcelJS.Worksheet, filtros: string, geradoEm: Date) {
   ws.spliceRows(1, 0, [`Relatório gerado em ${geradoEm.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })} — filtros: ${filtros}`], []);
 }
 
-export async function xlsxEfetivo(items: (Integrante & { ingressoEquipe?: string; cnh?: string; sat?: string; totalElogiosPublicados?: number | null; laureaVigente?: { grau: string; data: string } | null })[], filtros: string): Promise<Buffer> {
+export async function xlsxEfetivo(items: (Integrante & { ingressoEquipe?: string; cnh?: string; sat?: string; totalElogiosPublicados?: number | null; laureaVigente?: { grau: string; data: string } | null; medalha?: StatusMedalha })[], filtros: string): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet("Efetivo");
-  cabecalho(ws, ["Graduação", "RE", "Nome", "Nome de guerra", "Situação", "CNH", "SAT", "Ingresso PM", "Ingresso na equipe", "Elogios publicados", "Láurea vigente", "Data láurea"]);
-  for (const i of items) ws.addRow([seguro(i.graduacao), seguro(i.re), seguro(i.nome), seguro(i.nomeGuerra), seguro(i.situacao), seguro(i.cnh), seguro(i.sat), formatBR(i.ingressoPM), formatBR(i.ingressoEquipe), i.totalElogiosPublicados ?? "", i.laureaVigente?.grau ?? "", i.laureaVigente ? formatBR(i.laureaVigente.data) : ""]);
+  cabecalho(ws, ["Graduação", "RE", "Nome", "Nome de guerra", "Situação", "CNH", "SAT", "Ingresso PM", "Ingresso na equipe", "Elogios publicados", "Láurea vigente", "Data láurea", "Tempo de serviço (anos)", "Medalha VM — faz jus", "Medalha VM — recebida", "Data do recebimento", "Situação medalha"]);
+  for (const i of items) ws.addRow([seguro(i.graduacao), seguro(i.re), seguro(i.nome), seguro(i.nomeGuerra), seguro(i.situacao), seguro(i.cnh), seguro(i.sat), formatBR(i.ingressoPM), formatBR(i.ingressoEquipe), i.totalElogiosPublicados ?? "", i.laureaVigente?.grau ?? "", i.laureaVigente ? formatBR(i.laureaVigente.data) : "", i.medalha?.tempo?.anos ?? "", i.medalha?.devida ? ROTULO_GRAU[i.medalha.devida] : "", i.medalha?.recebida ? ROTULO_GRAU[i.medalha.recebida] : "", i.medalha?.recebidaEm ? formatBR(i.medalha.recebidaEm) : "", i.medalha ? ROTULO_SITUACAO[i.medalha.situacao] : ""]);
   meta(ws, filtros, new Date());
   ws.getColumn(2).numFmt = "@"; // RE como texto
   return Buffer.from(await wb.xlsx.writeBuffer());

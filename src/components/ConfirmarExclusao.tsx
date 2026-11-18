@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 export function ConfirmarExclusao({ aberto, titulo, onConfirmar, onCancelar, pending }: {
   aberto: boolean;
@@ -8,21 +8,25 @@ export function ConfirmarExclusao({ aberto, titulo, onConfirmar, onCancelar, pen
   onCancelar: () => void;
   pending?: boolean;
 }) {
+  // O diálogo só existe enquanto aberto: o estado reinicia a cada abertura.
+  if (!aberto) return null;
+  return <Dialogo titulo={titulo} onConfirmar={onConfirmar} onCancelar={onCancelar} pending={pending} />;
+}
+
+function Dialogo({ titulo, onConfirmar, onCancelar, pending }: {
+  titulo: string;
+  onConfirmar: () => void;
+  onCancelar: () => void;
+  pending?: boolean;
+}) {
   const [confirma, setConfirma] = useState("");
-  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (aberto) { setConfirma(""); setTimeout(() => inputRef.current?.focus(), 0); }
-  }, [aberto]);
-
-  useEffect(() => {
-    if (!aberto) return;
     function onKey(e: KeyboardEvent) { if (e.key === "Escape") onCancelar(); }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [aberto, onCancelar]);
+  }, [onCancelar]);
 
-  if (!aberto) return null;
   const habilitado = confirma.trim().toLowerCase() === "deletar";
 
   return (
@@ -32,7 +36,7 @@ export function ConfirmarExclusao({ aberto, titulo, onConfirmar, onCancelar, pen
         onClick={e => e.stopPropagation()}>
         <h2 className="font-semibold text-[#1f3a5f] dark:text-[#8fb3e6]">{titulo}</h2>
         <label className="mt-4 block text-sm">Digite <strong>DELETAR</strong> para confirmar
-          <input ref={inputRef} value={confirma} onChange={e => setConfirma(e.target.value)}
+          <input autoFocus value={confirma} onChange={e => setConfirma(e.target.value)}
             className="mt-1 w-full rounded border border-slate-300 dark:border-slate-600 px-3 py-1.5" />
         </label>
         <div className="mt-4 flex justify-end gap-2">
